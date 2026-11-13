@@ -78,7 +78,7 @@ export const useOffice = create<State>((set) => ({
   openTaskId: null,
   newTaskOpen: false,
 
-  officeName: 'Hermes Office',
+  officeName: 'Zelvira Office',
   avatars: [],
 
   // Mulai dari TIDAK TAHU, bukan dari hijau. Sistem yang belum selesai membaca keadaannya
@@ -144,7 +144,7 @@ export const useOffice = create<State>((set) => ({
     }>('/api/hermes/office', { cache: 'no-store' })
     if (!res.ok || !res.data) return
     set({
-      officeName: res.data.name || 'Hermes Office',
+      officeName: res.data.name || 'Zelvira Office',
       avatars: res.data.avatars || [],
     })
   },

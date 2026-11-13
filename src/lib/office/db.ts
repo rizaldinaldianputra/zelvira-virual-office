@@ -29,15 +29,18 @@ export type { AvatarKind, AvatarState, AvatarWrite } from './types'
  * between machines without ever being committed. `OFFICE_DB_PATH` overrides it
  * for tests.
  */
-const DB_PATH = process.env.OFFICE_DB_PATH ?? resolve(process.cwd(), 'data/office.db')
+export function getOfficeDbPath(): string {
+  return process.env.OFFICE_DB_PATH ?? resolve(process.cwd(), 'data/office.db')
+}
 
 let db: DatabaseSync | null = null
 
 /** Open (once) and migrate. Safe to call on every request. */
 export function officeDb(): DatabaseSync {
   if (db) return db
-  mkdirSync(dirname(DB_PATH), { recursive: true })
-  const d = new DatabaseSync(DB_PATH)
+  const dbPath = getOfficeDbPath()
+  mkdirSync(dirname(dbPath), { recursive: true })
+  const d = new DatabaseSync(dbPath)
   d.exec(`
     PRAGMA journal_mode = WAL;
     PRAGMA foreign_keys = ON;
@@ -92,7 +95,7 @@ const now = () => new Date().toISOString()
 
 /* ------------------------------------------------------------------ meta -- */
 
-export const DEFAULT_OFFICE_NAME = 'Hermes Office'
+export const DEFAULT_OFFICE_NAME = 'Zelvira Office'
 
 /** The office name shown (and editable) in the lobby. */
 export function getOfficeName(): string {
@@ -148,6 +151,12 @@ const toAvatar = (r: AvatarRow): AvatarState => ({
 export function listAvatars(): AvatarState[] {
   const rows = officeDb().prepare(`SELECT * FROM avatar_state ORDER BY division, name`).all() as AvatarRow[]
   return rows.map(toAvatar)
+}
+
+/** Hapus SEMUA baris dummy avatar agar kantor hanya dihuni agent asli. */
+export function deleteDummies(): number {
+  const r = officeDb().prepare(`DELETE FROM avatar_state WHERE kind = 'dummy'`).run() as { changes: number }
+  return Number(r?.changes ?? 0)
 }
 
 /**

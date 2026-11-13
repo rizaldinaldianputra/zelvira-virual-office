@@ -14,7 +14,6 @@ import BoardPanel from './BoardPanel'
 import ChatPanel from './ChatPanel'
 import NewTaskDialog from './NewTaskDialog'
 import KanbanModal from './KanbanModal'
-import DummySpawnDialog from './DummySpawnDialog'
 import OfficeNameDialog from './OfficeNameDialog'
 import { startPolling, useOffice } from '@/lib/store'
 import type { OfficeScene } from '@/lib/office/scene'
@@ -54,8 +53,6 @@ export default function OfficeApp() {
   const [chatOpen, setChatOpen] = useState(false)
   const [boardOpen, setBoardOpen] = useState(false)
   const [nameOpen, setNameOpen] = useState(false)
-  /** Slot of a dummy avatar that was clicked, if any. */
-  const [spawnSlot, setSpawnSlot] = useState<{ avatarId: string; division: AgentDivision } | null>(null)
   const loadOffice = useOffice((s) => s.loadOffice)
 
   useEffect(() => startPolling(), [])
@@ -120,7 +117,7 @@ export default function OfficeApp() {
         {view === '3d' ? (
           <Scene3D
             onScene={(s) => (sceneRef.current = s)}
-            onDummy={(avatarId, division) => setSpawnSlot({ avatarId, division })}
+            onDummy={() => setAgentOpen(true)}
             onBoard={() => setBoardOpen(true)}
             onName={() => setNameOpen(true)}
           />
@@ -134,7 +131,7 @@ export default function OfficeApp() {
       {/* ------------------------------------------------------- top bar */}
       <header ref={barRef} className="vp-topbar">
         <div className="vp-topbar-brand flex items-center gap-3">
-          <span className="vp-logo">Hermes Office</span>
+          <span className="vp-logo">Zelvira Office</span>
           <span className={`vp-dot ${backendOnline ? 'ok' : 'bad'}`} />
           <span className="vp-muted vp-topbar-status">
             {backendOnline ? `${agents.length} agent · ${running} jalan · ${pct}% rilis` : 'backend offline'}
@@ -156,7 +153,7 @@ export default function OfficeApp() {
             Papan
           </button>
           <button className="vp-btn vp-btn-ghost" onClick={() => setSystemOpen(true)}>
-            Sistem
+            Pengaturan & Sistem
           </button>
           <button className="vp-btn vp-btn-ghost" onClick={() => setChatOpen(true)}>
             Chat
@@ -209,16 +206,6 @@ export default function OfficeApp() {
       <NewTaskDialog />
       {boardOpen && <KanbanModal onClose={() => setBoardOpen(false)} />}
       {nameOpen && <OfficeNameDialog onClose={() => setNameOpen(false)} />}
-      {spawnSlot && (
-        <DummySpawnDialog
-          avatarId={spawnSlot.avatarId}
-          division={spawnSlot.division}
-          onClose={() => {
-            setSpawnSlot(null)
-            void loadOffice()
-          }}
-        />
-      )}
 
       {error && (
         <div className="vp-banner" role="alert">

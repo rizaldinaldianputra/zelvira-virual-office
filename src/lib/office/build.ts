@@ -2542,7 +2542,7 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     namePlate.position.set(DOOR.x, 3.5, HALF_D + 0.08)
     namePlate.name = 'office-name-plate'
     group.add(namePlate)
-    const nameMat = new THREE.MeshStandardMaterial({ map: signTexture('HERMES OFFICE'), roughness: 0.55 })
+    const nameMat = new THREE.MeshStandardMaterial({ map: signTexture('Zelvira Office'), roughness: 0.55 })
     const nameFace = new THREE.Mesh(new THREE.PlaneGeometry(6.0, 0.8), nameMat)
     nameFace.position.set(DOOR.x, 3.5, HALF_D + 0.15)
     nameFace.name = 'office-name-face'

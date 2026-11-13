@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import {
   claimAvatar,
+  deleteDummies,
   getOfficeName,
   listAvatars,
   saveAvatars,
@@ -24,9 +25,8 @@ export const dynamic = 'force-dynamic'
  */
 export async function GET() {
   try {
-    // First run: populate the dummy roster so the building is not empty. Idempotent
-    // — it only fires when the table has no rows at all.
-    seedAvatars(dummyRoster())
+    // Bersihkan semua baris dummy sehingga kantor hanya diisi agent nyata
+    deleteDummies()
     return NextResponse.json({
       name: getOfficeName(),
       avatars: listAvatars(),

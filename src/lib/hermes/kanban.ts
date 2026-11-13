@@ -576,6 +576,124 @@ export async function setProfileModel(
   }
 }
 
+/**
+ * Model default global Hermes (dari config.yaml tingkat atas atau fallback AI_MODEL).
+ */
+export async function getHermesDefaultModel(): Promise<{ model: string | null; provider: string | null }> {
+  try {
+    const raw = await hermesJson<{ default?: string; provider?: string } | string>([
+      'config',
+      'get',
+      'model',
+      '--json',
+    ])
+    if (typeof raw === 'string') return { model: raw || null, provider: null }
+    return { model: raw?.default || null, provider: raw?.provider || null }
+  } catch {
+    return { model: process.env.AI_MODEL || null, provider: null }
+  }
+}
+
+/**
+ * Set model default global Hermes.
+ */
+export async function setHermesDefaultModel(
+  model: string,
+  provider?: string | null,
+): Promise<void> {
+  if (!model) throw new Error('model wajib diisi')
+  await hermesWrite(['config', 'set', 'model.default', model])
+  if (provider) {
+    const qualified = provider.includes(':') ? provider : `custom:${provider.trim().toLowerCase()}`
+    await hermesWrite(['config', 'set', 'model.provider', qualified])
+  }
+}
+
+/**
+ * Simpan custom provider baru (dengan API key) dan set sebagai model.
+ */
+export async function saveCustomProviderAndModel(opts: {
+  name: string
+  apiKey: string
+  baseUrl?: string
+  model: string
+  setAsDefault?: boolean
+  applyToAllProfiles?: boolean
+}): Promise<{ model: string; provider: string; profilesUpdated: string[] }> {
+  const name = opts.name.trim().toLowerCase() || 'custom-provider'
+  const baseUrl = (opts.baseUrl || '').trim() || 'https://api.openai.com/v1'
+  const model = opts.model.trim()
+  const apiKey = opts.apiKey.trim()
+
+  if (!model) throw new Error('Model wajib diisi')
+
+  const existing = await kanbanConfig<RawProvider[]>('custom_providers').catch(() => [] as RawProvider[])
+  const list = Array.isArray(existing) ? existing.filter((p) => String(p?.name || '').trim().toLowerCase() !== name) : []
+
+  const newProvider: RawProvider & { api_key?: string } = {
+    name,
+    base_url: baseUrl,
+    api_key: apiKey,
+    model,
+    models: { [model]: {} },
+  }
+  list.push(newProvider)
+
+  await hermesWrite(['config', 'set', 'custom_providers', JSON.stringify(list)])
+
+  const providerSlug = `custom:${name}`
+  if (opts.setAsDefault !== false) {
+    await setHermesDefaultModel(model, providerSlug)
+  }
+
+  const profilesUpdated: string[] = []
+  if (opts.applyToAllProfiles) {
+    const profiles = await listProfiles().catch(() => [])
+    for (const p of profiles) {
+      try {
+        await setProfileModel(p, model, providerSlug)
+        profilesUpdated.push(p)
+      } catch (e) {
+        console.error(`Gagal apply model ke profile ${p}:`, e)
+      }
+    }
+  }
+
+  return { model, provider: providerSlug, profilesUpdated }
+}
+
+/**
+ * Samakan SEMUA profil agent ke model default Hermes.
+ */
+export async function syncAllProfilesToDefault(
+  targetModel?: string,
+  targetProvider?: string | null,
+): Promise<{
+  model: string | null
+  provider: string | null
+  profilesUpdated: string[]
+}> {
+  const def = await getHermesDefaultModel()
+  const model = targetModel || def.model
+  const provider = targetProvider !== undefined ? targetProvider : def.provider
+
+  if (!model) throw new Error('Tidak ada model default yang terdeteksi di konfigurasi Hermes')
+
+  const profiles = await listProfiles().catch(() => [])
+  const profilesUpdated: string[] = []
+
+  for (const p of profiles) {
+    try {
+      await setProfileModel(p, model, provider)
+      profilesUpdated.push(p)
+    } catch (e) {
+      console.error(`Gagal sync profile ${p}:`, e)
+    }
+  }
+
+  return { model, provider, profilesUpdated }
+}
+
 /** Toolset CLI satu profil (`platform_toolsets.cli`).
  *
  * Tiga keadaan dibedakan (A2A-CALL-1 + koreksi operator):

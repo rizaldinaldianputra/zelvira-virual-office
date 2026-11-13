@@ -761,7 +761,7 @@ export default function SpriteOffice({ onSelect }: { onSelect: (name: string) =>
   return (
     <div className="absolute inset-0 overflow-auto pt-14 vp-sprite-office" aria-label="Kantor pixel 2D">
       <div className="vp-sprite-hud" aria-hidden="true">
-        <span>HERMES OFFICE</span><span>{agents.length} agent</span><span>{tasks.length} tugas</span><span>klik sprite untuk pilih</span>
+        <span>Zelvira Office</span><span>{agents.length} agent</span><span>{tasks.length} tugas</span><span>klik sprite untuk pilih</span>
       </div>
       <canvas
         ref={canvasRef}

@@ -24,6 +24,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import FullPanel from './FullPanel'
 import { useOffice } from '@/lib/store'
+import { fetchJson } from '@/lib/api'
+import type { ModelChoice } from './ModelPicker'
 
 type UsageRow = {
   model: string
@@ -126,6 +128,167 @@ export default function SystemPanel({ open, onClose }: { open: boolean; onClose:
   const [needsGatewayRestart, setNeedsGatewayRestart] = useState<boolean | null>(null)
   const work = useOffice((st) => st.work)
 
+  // Model settings state
+  const [modelData, setModelData] = useState<{
+    models: ModelChoice[]
+    defaultModel: string | null
+    defaultProvider: string | null
+    profiles: { name: string; model: string | null; provider: string | null; isDefault: boolean }[]
+  } | null>(null)
+  const [modelLoading, setModelLoading] = useState(false)
+  const [modelBusy, setModelBusy] = useState(false)
+  const [modelMsg, setModelMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
+
+  // Catalog model selection
+  const [selectedCatalogModel, setSelectedCatalogModel] = useState('')
+  const [applyCatalogToAll, setApplyCatalogToAll] = useState(true)
+
+  // Custom provider input
+  const [customApiKey, setCustomApiKey] = useState('')
+  const [customModel, setCustomModel] = useState('')
+  const [customProviderName, setCustomProviderName] = useState('')
+  const [customBaseUrl, setCustomBaseUrl] = useState('')
+  const [customSetAsDefault, setCustomSetAsDefault] = useState(true)
+  const [customApplyToAll, setCustomApplyToAll] = useState(true)
+  const [modelTab, setModelTab] = useState<'catalog' | 'custom'>('catalog')
+
+  const loadModels = useCallback(async () => {
+    setModelLoading(true)
+    try {
+      const res = await fetchJson<{
+        models: ModelChoice[]
+        defaultModel: string | null
+        defaultProvider: string | null
+        profiles: { name: string; model: string | null; provider: string | null; isDefault: boolean }[]
+      }>('/api/hermes/models')
+      if (res.ok && res.data) {
+        setModelData(res.data)
+        if (res.data.defaultModel && !selectedCatalogModel) {
+          setSelectedCatalogModel(res.data.defaultModel)
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load models:', e)
+    } finally {
+      setModelLoading(false)
+    }
+  }, [selectedCatalogModel])
+
+  const handleApplyCatalogModel = async () => {
+    if (!selectedCatalogModel) return
+    setModelBusy(true)
+    setModelMsg(null)
+    try {
+      const found = modelData?.models.find((m) => m.model === selectedCatalogModel)
+      const res = await fetchJson<{ success: boolean; appliedToProfiles?: string[] }>('/api/hermes/models', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'setDefault',
+          model: selectedCatalogModel,
+          provider: found?.provider,
+          applyToAllProfiles: applyCatalogToAll,
+        }),
+      })
+      if (!res.ok) throw new Error(res.error || 'Gagal mengubah model default')
+      setModelMsg({
+        type: 'ok',
+        text: `Model default diubah ke "${selectedCatalogModel}"${
+          applyCatalogToAll ? ` dan diterapkan ke ${res.data?.appliedToProfiles?.length ?? 0} profil agent.` : '.'
+        }`,
+      })
+      await loadModels()
+    } catch (e) {
+      setModelMsg({ type: 'err', text: (e as Error).message })
+    } finally {
+      setModelBusy(false)
+    }
+  }
+
+  const handleSaveCustomProvider = async () => {
+    if (!customApiKey.trim() || !customModel.trim()) return
+    setModelBusy(true)
+    setModelMsg(null)
+    try {
+      const res = await fetchJson<{ success: boolean; profilesUpdated?: string[] }>('/api/hermes/models', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'setCustomProvider',
+          name: customProviderName.trim() || 'custom',
+          apiKey: customApiKey.trim(),
+          baseUrl: customBaseUrl.trim() || undefined,
+          model: customModel.trim(),
+          setAsDefault: customSetAsDefault,
+          applyToAllProfiles: customApplyToAll,
+        }),
+      })
+      if (!res.ok) throw new Error(res.error || 'Gagal menyimpan custom provider')
+      setModelMsg({
+        type: 'ok',
+        text: `Provider & Model "${customModel}" berhasil disimpan${
+          customApplyToAll ? ` dan diterapkan ke ${res.data?.profilesUpdated?.length ?? 0} profil agent.` : '.'
+        }`,
+      })
+      setCustomApiKey('')
+      await loadModels()
+    } catch (e) {
+      setModelMsg({ type: 'err', text: (e as Error).message })
+    } finally {
+      setModelBusy(false)
+    }
+  }
+
+  const handleSyncAllProfiles = async () => {
+    setModelBusy(true)
+    setModelMsg(null)
+    try {
+      const res = await fetchJson<{ success: boolean; profilesUpdated?: string[]; defaultModel?: string }>('/api/hermes/models', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'syncAll' }),
+      })
+      if (!res.ok) throw new Error(res.error || 'Gagal menyamakan profil')
+      setModelMsg({
+        type: 'ok',
+        text: `Seluruh profil agent (${res.data?.profilesUpdated?.length ?? 0} agent) berhasil disamakan mengikuti model default "${res.data?.defaultModel}".`,
+      })
+      await loadModels()
+    } catch (e) {
+      setModelMsg({ type: 'err', text: (e as Error).message })
+    } finally {
+      setModelBusy(false)
+    }
+  }
+
+  const handleResetProfile = async (name: string) => {
+    if (!modelData?.defaultModel) return
+    setModelBusy(true)
+    setModelMsg(null)
+    try {
+      const res = await fetchJson<{ success: boolean }>('/api/hermes/models', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'setProfileModel',
+          name,
+          model: modelData.defaultModel,
+          provider: modelData.defaultProvider,
+        }),
+      })
+      if (!res.ok) throw new Error(res.error || `Gagal me-reset profil ${name}`)
+      setModelMsg({
+        type: 'ok',
+        text: `Profil "${name}" berhasil di-reset mengikuti default Hermes ("${modelData.defaultModel}").`,
+      })
+      await loadModels()
+    } catch (e) {
+      setModelMsg({ type: 'err', text: (e as Error).message })
+    } finally {
+      setModelBusy(false)
+    }
+  }
+
   const load = useCallback(async () => {
     setBusy(true)
     try {
@@ -179,13 +342,15 @@ export default function SystemPanel({ open, onClose }: { open: boolean; onClose:
     load()
     loadApprovals()
     loadRestart()
+    loadModels()
     const t = setInterval(() => {
       load()
       loadApprovals()
       loadRestart()
+      loadModels()
     }, 30_000)
     return () => clearInterval(t)
-  }, [open, load, loadApprovals, loadRestart])
+  }, [open, load, loadApprovals, loadRestart, loadModels])
 
   if (!open) return null
 
@@ -219,9 +384,10 @@ export default function SystemPanel({ open, onClose }: { open: boolean; onClose:
               load()
               loadApprovals()
               loadRestart()
+              loadModels()
             }}
-            disabled={busy} className="rounded border border-slate-600 px-2 py-1 hover:bg-slate-800">
-            {busy ? '...' : 'muat ulang'}
+            disabled={busy || modelBusy} className="rounded border border-slate-600 px-2 py-1 hover:bg-slate-800">
+            {busy || modelBusy ? '...' : 'muat ulang'}
           </button>
         </>
       }
@@ -238,6 +404,286 @@ export default function SystemPanel({ open, onClose }: { open: boolean; onClose:
       )}
 
       {notice && <div className="mb-4 rounded border border-slate-600 bg-slate-800/60 p-2 text-xs">{notice}</div>}
+
+      {/* ---------- PENGATURAN MODEL AGENT & API KEY ---------- */}
+      <section className="mb-6 rounded-lg border border-indigo-700/60 bg-gradient-to-b from-slate-900 to-indigo-950/30 p-4 text-xs shadow-lg">
+        <div className="flex items-center justify-between border-b border-indigo-800/50 pb-2 mb-3">
+          <div className="flex items-center gap-2">
+            <span className="text-base">⚙️</span>
+            <div>
+              <h3 className="font-semibold text-sm uppercase tracking-wide text-indigo-300">
+                Pengaturan Model Agent & API Key
+              </h3>
+              <p className="text-[11px] text-slate-400">
+                Pilih model AI untuk seluruh agent. Default dari profile Hermes, atau masukkan API key & model kustom.
+              </p>
+            </div>
+          </div>
+          {modelLoading && <span className="text-indigo-400 animate-pulse text-[11px]">memuat model…</span>}
+        </div>
+
+        {modelMsg && (
+          <div
+            className={`mb-3 p-2.5 rounded border text-xs flex justify-between items-center ${
+              modelMsg.type === 'ok'
+                ? 'bg-emerald-950/60 border-emerald-700 text-emerald-300'
+                : 'bg-red-950/60 border-red-700 text-red-300'
+            }`}
+          >
+            <span>{modelMsg.text}</span>
+            <button
+              onClick={() => setModelMsg(null)}
+              className="text-slate-400 hover:text-white ml-2 text-sm font-bold"
+            >
+              ×
+            </button>
+          </div>
+        )}
+
+        {/* Status Default Hermes Model Saat Ini */}
+        <div className="mb-4 rounded border border-slate-700 bg-slate-800/80 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <span className="text-slate-400 text-[11px] block">Model Default Hermes Kantor:</span>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="font-mono text-sm font-bold text-amber-300">
+                  {modelData?.defaultModel || 'gpt-4o-mini'}
+                </span>
+                {modelData?.defaultProvider && (
+                  <span className="rounded bg-indigo-900/60 px-1.5 py-0.5 text-[10px] text-indigo-300 border border-indigo-700/50">
+                    provider: {modelData.defaultProvider}
+                  </span>
+                )}
+                <span className="rounded bg-emerald-900/40 px-1.5 py-0.5 text-[10px] text-emerald-300 border border-emerald-700/40">
+                  default profile
+                </span>
+              </div>
+            </div>
+
+            <button
+              onClick={handleSyncAllProfiles}
+              disabled={modelBusy}
+              className="rounded bg-indigo-600 px-3 py-1.5 font-medium text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors shadow-sm"
+              title="Set semua profil agent aktif agar mengikuti model default Hermes ini"
+            >
+              {modelBusy ? 'Memproses…' : '🔄 Samakan Semua Profile ke Default Hermes'}
+            </button>
+          </div>
+          <div className="mt-2 text-[11px] text-slate-400">
+            💡 Semua agent yang dibuat tanpa spesifikasi model khusus otomatis mengikuti default ini.
+          </div>
+        </div>
+
+        {/* Tab Pilih Model / Masukkan API Key */}
+        <div className="flex border-b border-slate-700 mb-3 gap-2">
+          <button
+            onClick={() => setModelTab('catalog')}
+            className={`px-3 py-1.5 text-xs font-medium border-b-2 transition-colors ${
+              modelTab === 'catalog'
+                ? 'border-indigo-400 text-indigo-300 bg-indigo-950/20'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            📋 Pilih dari Model Terdaftar
+          </button>
+          <button
+            onClick={() => setModelTab('custom')}
+            className={`px-3 py-1.5 text-xs font-medium border-b-2 transition-colors ${
+              modelTab === 'custom'
+                ? 'border-indigo-400 text-indigo-300 bg-indigo-950/20'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            🔑 Masukkan API Key & Model Kustom
+          </button>
+        </div>
+
+        {/* TAB 1: PILIH DARI KATALOG */}
+        {modelTab === 'catalog' && (
+          <div className="space-y-3 bg-slate-800/40 p-3 rounded border border-slate-700/70">
+            <div>
+              <label className="block text-slate-300 font-medium mb-1">
+                Pilih Model dari Katalog Hermes:
+              </label>
+              <select
+                value={selectedCatalogModel}
+                onChange={(e) => setSelectedCatalogModel(e.target.value)}
+                className="w-full rounded border border-slate-600 bg-slate-900 px-3 py-2 text-slate-200 focus:border-indigo-500 focus:outline-none"
+              >
+                <option value="">-- Pilih Model --</option>
+                {modelData?.models?.map((m) => (
+                  <option key={`${m.provider}:${m.model}`} value={m.model}>
+                    {m.label || `${m.model} (${m.provider})`}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2 pt-1">
+              <label className="flex items-center gap-2 text-slate-300 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={applyCatalogToAll}
+                  onChange={(e) => setApplyCatalogToAll(e.target.checked)}
+                  className="rounded border-slate-600 bg-slate-800 text-indigo-500 focus:ring-indigo-400"
+                />
+                <span>Set ke semua profil agent (semua profile mengikuti model ini)</span>
+              </label>
+            </div>
+
+            <div className="pt-2">
+              <button
+                onClick={handleApplyCatalogModel}
+                disabled={modelBusy || !selectedCatalogModel}
+                className="rounded bg-emerald-600 px-3 py-1.5 font-medium text-white hover:bg-emerald-500 disabled:opacity-50 transition-colors"
+              >
+                {modelBusy ? 'Menyimpan…' : '✓ Terapkan Model Terpilih'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 2: INPUT API KEY & CUSTOM MODEL */}
+        {modelTab === 'custom' && (
+          <div className="space-y-3 bg-slate-800/40 p-3 rounded border border-slate-700/70">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-slate-300 font-medium mb-1">
+                  API Key: <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="password"
+                  value={customApiKey}
+                  onChange={(e) => setCustomApiKey(e.target.value)}
+                  placeholder="sk-or-v1-... atau sk-..."
+                  className="w-full rounded border border-slate-600 bg-slate-900 px-3 py-1.5 text-slate-200 focus:border-indigo-500 focus:outline-none font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-medium mb-1">
+                  Model ID: <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={customModel}
+                  onChange={(e) => setCustomModel(e.target.value)}
+                  placeholder="cth: anthropic/claude-3.5-sonnet, openai/gpt-4o-mini"
+                  className="w-full rounded border border-slate-600 bg-slate-900 px-3 py-1.5 text-slate-200 focus:border-indigo-500 focus:outline-none font-mono"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-slate-300 font-medium mb-1">
+                  Nama Provider:
+                </label>
+                <input
+                  type="text"
+                  value={customProviderName}
+                  onChange={(e) => setCustomProviderName(e.target.value)}
+                  placeholder="cth: openrouter, openai, groq (opsional)"
+                  className="w-full rounded border border-slate-600 bg-slate-900 px-3 py-1.5 text-slate-200 focus:border-indigo-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-medium mb-1">
+                  Base URL:
+                </label>
+                <input
+                  type="text"
+                  value={customBaseUrl}
+                  onChange={(e) => setCustomBaseUrl(e.target.value)}
+                  placeholder="https://openrouter.ai/api/v1 (opsional)"
+                  className="w-full rounded border border-slate-600 bg-slate-900 px-3 py-1.5 text-slate-200 focus:border-indigo-500 focus:outline-none font-mono text-[11px]"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1 pt-1">
+              <label className="flex items-center gap-2 text-slate-300 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={customSetAsDefault}
+                  onChange={(e) => setCustomSetAsDefault(e.target.checked)}
+                  className="rounded border-slate-600 bg-slate-800 text-indigo-500 focus:ring-indigo-400"
+                />
+                <span>Jadikan model default Hermes kantor</span>
+              </label>
+              <label className="flex items-center gap-2 text-slate-300 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={customApplyToAll}
+                  onChange={(e) => setCustomApplyToAll(e.target.checked)}
+                  className="rounded border-slate-600 bg-slate-800 text-indigo-500 focus:ring-indigo-400"
+                />
+                <span>Set ke semua profil agent aktif sekarang juga</span>
+              </label>
+            </div>
+
+            <div className="pt-2">
+              <button
+                onClick={handleSaveCustomProvider}
+                disabled={modelBusy || !customApiKey.trim() || !customModel.trim()}
+                className="rounded bg-indigo-600 px-3 py-1.5 font-medium text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors shadow-sm"
+              >
+                {modelBusy ? 'Menyimpan…' : '💾 Simpan Provider & Pasang Model'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Tabel Profil Agent Aktif & Status Model */}
+        {modelData?.profiles && modelData.profiles.length > 0 && (
+          <div className="mt-4 pt-3 border-t border-slate-700/60">
+            <h4 className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-2">
+              Status Model per Profil Agent ({modelData.profiles.length} agent):
+            </h4>
+            <div className="overflow-x-auto">
+              <table className="w-full text-[11px] text-left border border-slate-700/80 rounded">
+                <thead className="bg-slate-800 text-slate-400">
+                  <tr>
+                    <th className="px-2 py-1.5 border-b border-slate-700">Agent</th>
+                    <th className="px-2 py-1.5 border-b border-slate-700">Model Aktif</th>
+                    <th className="px-2 py-1.5 border-b border-slate-700">Status</th>
+                    <th className="px-2 py-1.5 border-b border-slate-700 text-right">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800">
+                  {modelData.profiles.map((p) => (
+                    <tr key={p.name} className="hover:bg-slate-800/40">
+                      <td className="px-2 py-1.5 font-medium text-slate-200">{p.name}</td>
+                      <td className="px-2 py-1.5 font-mono text-slate-300">
+                        {p.model || modelData.defaultModel || 'gpt-4o-mini'}
+                      </td>
+                      <td className="px-2 py-1.5">
+                        {p.isDefault ? (
+                          <span className="text-emerald-300">✓ Mengikuti Default Hermes</span>
+                        ) : (
+                          <span className="text-amber-300">Custom Override</span>
+                        )}
+                      </td>
+                      <td className="px-2 py-1.5 text-right">
+                        {!p.isDefault && (
+                          <button
+                            onClick={() => handleResetProfile(p.name)}
+                            disabled={modelBusy}
+                            className="rounded border border-slate-600 px-2 py-0.5 text-[10px] text-slate-300 hover:bg-slate-700"
+                          >
+                            Reset ke Default
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </section>
 
       {/* ---------- gateway ---------- */}
       {/* "Butuh restart" dari SATU sumber kebenaran (bukan hitungan panel ini).

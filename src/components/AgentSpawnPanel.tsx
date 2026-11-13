@@ -49,6 +49,42 @@ type Permissions = Record<string, { allow: string[]; deny: string[]; anyTask: bo
 const ROLE_OPTIONS = Object.entries(ROLE_LABEL) as [AgentRole, string][]
 const DIVISION_OPTIONS = Object.entries(DIVISION_LABEL) as [AgentDivision, string][]
 
+const SKILL_SUGGESTIONS: Record<AgentRole, string[]> = {
+  ceo: ['strategic-planning', 'decision-making', 'team-leadership', 'resource-allocation'],
+  orchestrator: ['workflow-automation', 'task-delegation', 'coordination', 'problem-solving'],
+  manager: ['project-management', 'team-sync', 'qa-review', 'mentoring'],
+  backend: ['nodejs', 'postgresql', 'rest-api', 'docker', 'database-design'],
+  frontend: ['react', 'nextjs', 'tailwindcss', 'ui-ux', 'responsive-design'],
+  qa: ['test-automation', 'verification', 'bug-hunting', 'evidence-validation'],
+  researcher: ['market-research', 'data-synthesis', 'competitive-analysis', 'reporting'],
+  devops: ['docker', 'ci-cd', 'linux', 'server-monitoring', 'infrastructure'],
+  marketing: ['meta-ads', 'google-ads', 'conversion-rate', 'copywriting', 'campaign-strategy'],
+  seo: ['keyword-research', 'on-page-seo', 'backlinks', 'content-optimization', 'search-console'],
+  content: ['article-writing', 'video-scripts', 'storytelling', 'social-media-content'],
+  affiliator: ['affiliate-marketing', 'product-curation', 'conversion-tracking', 'link-strategy'],
+}
+
+const SOUL_PRESETS: { label: string; desc: string; text: (name: string, role: string, div: string) => string }[] = [
+  {
+    label: '🛡️ Standar Anti-Halusinasi & Bukti',
+    desc: 'Pedoman ketat berbasis bukti: dilarang mengarang, wajib sertakan verifikasi output.',
+    text: (name, role, div) =>
+      `Kamu adalah ${name || 'Agent'}, ${role} di divisi ${div}.\n\nPEDOMAN ANTI-HALUSINASI & CARA KERJA:\n1. Eksekusi Berbasis Bukti: Jangan pernah mengarang data, output tool, atau status apa pun.\n2. Verifikasi Nyata: Setiap hasil kerja wajib dibuktikan dengan output konkret (status tool, error code, test result).\n3. Transparansi Kendala: Jika menemui error atau tidak yakin, sampaikan secara jujur disertai langkah perbaikan alternatif.\n4. Komunikasi: Gunakan Bahasa Indonesia yang ringkas, profesional, dan langsung pada inti persoalan.`,
+  },
+  {
+    label: '🔍 QA & Verifikasi Kritis',
+    desc: 'Standar audit tinggi: tolak klaim selesai yang tidak memiliki bukti output nyata.',
+    text: (name, role, div) =>
+      `Kamu adalah ${name || 'Agent'}, ${role} di divisi ${div}.\n\nPRINSIP VERIFIKASI & AUDIT:\n1. Uji secara menyeluruh sebelum menyatakan tugas selesai.\n2. Tolak overclaim atau dugaan yang tidak didukung data nyata.\n3. Periksa fungsionalitas, keamanan, dan kemungkinan error edge-case.\n4. Berikan rangkuman hasil pengujian yang objektif dan transparan.`,
+  },
+  {
+    label: '⚡ Eksekutor Cepat & Mandiri',
+    desc: 'Langsung aksi dengan tool nyata, efisien, dan mandiri.',
+    text: (name, role, div) =>
+      `Kamu adalah ${name || 'Agent'}, ${role} di divisi ${div}.\n\nPRINSIP EKSEKUSI CEPAT:\n1. Perintah → Langsung aksi via tool nyata → Laporan hasil konkret.\n2. Self-repair: Jika perintah gagal, diagnosa masalah, perbaiki, dan ulangi.\n3. Ringkas dan fokus pada penyelesaian masalah tanpa basa-basi.`,
+  },
+]
+
 export default function AgentSpawnPanel({
   open,
   onClose,
@@ -470,136 +506,286 @@ export default function AgentSpawnPanel({
       )}
       {loading && <div className="vp-muted">memuat…</div>}
 
-      <div className="vp-sub">BUAT PROFIL BARU</div>
-      <input
-        className="vp-input"
-        value={newName}
-        onChange={(e) => setNewName(e.target.value)}
-        placeholder="budi"
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') void create()
-        }}
-      />
-      {/*
-        Deskripsi = `description` di agent card A2A: teks yang dibaca agent
-        pemanggil untuk memutuskan "ini orangnya". Tulis BUAT DIBACA AGENT
-        LAIN (kosakata domain yang akan dicari), bukan sekadar label manusia.
-      */}
-      <textarea
-        className="vp-input"
-        value={newDesc}
-        onChange={(e) => setNewDesc(e.target.value)}
-        placeholder="Deskripsi agent card — DIBACA AGENT LAIN saat discovery. Tulis kosakata domain yang akan dicari, cth: Menangani iklan Meta & Google: budget, CPA, laporan performa mingguan. Hubungi kalau butuh angka spend atau hasil kampanye."
-        rows={2}
-      />
-      {/*
-        Keahlian/domain: daftar koma ("meta-ads, reporting"). Dipakai OFFICE
-        untuk pemetaan domain→pemilik — TIDAK diumumkan ke A2A (skills di card
-        hanya bisa berisi toolset Hermes yang nyata, lihat pilihan di bawah).
-      */}
-      <input
-        className="vp-input"
-        value={newDomains}
-        onChange={(e) => setNewDomains(e.target.value)}
-        placeholder="Keahlian/domain, pisah koma — cth: meta-ads, reporting, budget (pemetaan office, bukan A2A)"
-      />
-      <div className="flex gap-2">
-        <select
-          className="vp-input"
-          value={newRole}
-          onChange={(e) => setNewRole(e.target.value as AgentRole)}
-          title="Role agent"
-        >
-          {ROLE_OPTIONS.map(([v, label]) => (
-            <option key={v} value={v}>
-              {label}
-            </option>
-          ))}
-        </select>
-        <select
-          className="vp-input"
-          value={newDivision}
-          onChange={(e) => setNewDivision(e.target.value as AgentDivision)}
-          title="Divisi agent"
-        >
-          {DIVISION_OPTIONS.map(([v, label]) => (
-            <option key={v} value={v}>
-              {label}
-            </option>
-          ))}
-        </select>
-      </div>
-      <textarea
-        className="vp-input"
-        value={newSoul}
-        onChange={(e) => setNewSoul(e.target.value)}
-        placeholder="cth: Budi adalah CEO visioner — ambil keputusan akhir, bagi tugas ke tiap divisi, jaga visi perusahaan. Gaya: tegas, ringkas, eksekusi langsung. (opsional)"
-        rows={3}
-      />
-      <ModelPicker
-        value={newModel}
-        onChange={setNewModel}
-        models={models}
-        disabled={creating}
-        emptyLabel="bawaan Hermes"
-        title="Model untuk agent baru ini (kosong = bawaan Hermes)"
-      />
-      {/*
-        Toolset yang DIUMUMKAN di agent card (`advertised_toolsets`). Hanya
-        nama toolset nyata Hermes — skills di card diturunkan dari registry,
-        bukan tag bebas. Kosong = umumkan semua toolset.
-      */}
-      <div className="vp-sub" title="Toolset nyata yang diumumkan di agent card A2A. Kosong = semua.">
-        UMUMKAN DI AGENT CARD (KOSONG = SEMUA)
-      </div>
-      <div className="flex flex-wrap gap-1" style={{ maxHeight: 120, overflowY: 'auto' }}>
-        {toolsetCatalog.map((t) => {
-          const on = newToolsets.includes(t.name)
-          return (
-            <button
-              key={t.name}
-              type="button"
-              className={`vp-chip-btn${on ? ' on' : ''}`}
-              disabled={creating}
-              onClick={() =>
-                setNewToolsets((prev) => (prev.includes(t.name) ? prev.filter((x) => x !== t.name) : [...prev, t.name]))
-              }
-              title={`${t.name}${t.enabled ? '' : ' (nonaktif di install ini)'}`}
-              style={{ opacity: t.enabled ? 1 : 0.55 }}
-            >
-              {on ? '✓ ' : ''}{t.name}
-            </button>
-          )
-        })}
-        {!toolsetCatalog.length && <span className="vp-muted">memuat daftar toolset…</span>}
-      </div>
-      {/*
-        Toggle A2A: default NYALA (permintaan operator). Hidup = tulis entri
-        served-agent (local:false, dijawab profil ini sendiri). BERLAKU SETELAH
-        GATEWAY DI-RESTART — form tidak menampilkan "aktif" sebelum itu.
-      */}
-      <label className="flex items-center gap-2" style={{ fontSize: 12 }}>
-        <input
-          type="checkbox"
-          checked={newServeA2a}
-          disabled={creating}
-          onChange={(e) => setNewServeA2a(e.target.checked)}
-        />
-        <span title="Daftarkan profil ini di platforms.a2a.agents (local:false). Berlaku setelah gateway di-restart.">
-          Bisa dihubungi agent lain (A2A) — otomatis terdaftar A2A; berlaku setelah gateway di-restart
-        </span>
-      </label>
-      <button
-        className="vp-btn"
-        disabled={creating || !newName.trim()}
-        onClick={create}
-      >
-        {creating ? 'Membuat…' : '+ Buat profil'}
-      </button>
+      {/* ======================================================== FORM BUAT AGENT */}
+      <div className="rounded-lg border border-slate-700 bg-slate-900/90 p-4 shadow-xl space-y-4">
+        <div className="border-b border-slate-700 pb-2">
+          <h3 className="text-sm font-bold tracking-wide text-indigo-300 uppercase flex items-center gap-2">
+            <span>✨</span> FORM PEMBUATAN AGENT BARU
+          </h3>
+          <p className="text-[11px] text-slate-400 mt-0.5">
+            Definisikan identitas, peran, soul (anti-halusinasi), skill spesifik, dan alat eksekusi agent dengan jelas.
+          </p>
+        </div>
 
-      <button className="vp-btn vp-btn-rosy" disabled={!!busy} onClick={load}>
-        Segarkan
-      </button>
+        {/* ---------------- 1. IDENTITAS & PERAN ---------------- */}
+        <div className="rounded border border-slate-800 bg-slate-800/40 p-3 space-y-2.5">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-300 uppercase tracking-wider">
+            <span>👤</span> 1. IDENTITAS & PERAN UTAMA (IDENTITY & ROLE)
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-medium text-slate-400 mb-1">
+              Nama Profil / ID Panggilan Agent: <span className="text-red-400">*</span>
+            </label>
+            <input
+              className="vp-input w-full"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))}
+              placeholder="misal: satria, budi, maya (huruf kecil tanpa spasi)"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void create()
+              }}
+            />
+            <span className="text-[10px] text-slate-500 block mt-0.5">
+              ID unik profil Hermes di sistem. Digunakan saat chat, penugasan kanban, dan koordinasi antar-agent.
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div>
+              <label className="block text-[11px] font-medium text-slate-400 mb-1">
+                Divisi Kantor: <span className="text-red-400">*</span>
+              </label>
+              <select
+                className="vp-input w-full"
+                value={newDivision}
+                onChange={(e) => setNewDivision(e.target.value as AgentDivision)}
+                title="Divisi agent di kantor"
+              >
+                {DIVISION_OPTIONS.map(([v, label]) => (
+                  <option key={v} value={v}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-medium text-slate-400 mb-1">
+                Spesialisasi Role / Jabatan: <span className="text-red-400">*</span>
+              </label>
+              <select
+                className="vp-input w-full"
+                value={newRole}
+                onChange={(e) => setNewRole(e.target.value as AgentRole)}
+                title="Spesialisasi peran agent"
+              >
+                {ROLE_OPTIONS.map(([v, label]) => (
+                  <option key={v} value={v}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-medium text-slate-400 mb-1">
+              Deskripsi Publik Agent Card (A2A Discovery):
+            </label>
+            <textarea
+              className="vp-input w-full"
+              value={newDesc}
+              onChange={(e) => setNewDesc(e.target.value)}
+              placeholder="Deskripsi ringkas yang dibaca agent lain saat discovery. Tulis cakupan tugas, misal: Menangani API backend, optimasi query Postgres, dan deployment container. Hubungi untuk integrasi service atau bug server."
+              rows={2}
+            />
+            <span className="text-[10px] text-slate-500 block mt-0.5">
+              Teks ini dibaca oleh AI agent lain di kantor untuk mengetahui kapan harus mendelegasikan tugas ke agent ini.
+            </span>
+          </div>
+        </div>
+
+        {/* ---------------- 2. SOUL & ANTI-HALUSINASI ---------------- */}
+        <div className="rounded border border-indigo-900/60 bg-indigo-950/20 p-3 space-y-2.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-indigo-300 uppercase tracking-wider">
+              <span>🧠</span> 2. SOUL & PEDOMAN ANTI-HALUSINASI (SYSTEM PROMPT)
+            </div>
+            <span className="rounded bg-indigo-900/70 text-indigo-200 px-1.5 py-0.5 text-[10px] font-medium">
+              No Halu · Verifikasi Wajib
+            </span>
+          </div>
+
+          <p className="text-[11px] text-slate-400 leading-relaxed">
+            <b>Soul</b> adalah kepribadian dan pedoman instruksi eksekusi utama agent. Untuk memastikan agent
+            bekerja sesuai harapan dan <b>tidak berhalusinasi (tanpa ngarang jawaban)</b>, pilih template pedoman
+            ketat di bawah atau tulis aturan kustom Anda:
+          </p>
+
+          <div className="flex flex-wrap gap-1.5">
+            {SOUL_PRESETS.map((preset) => (
+              <button
+                key={preset.label}
+                type="button"
+                onClick={() => setNewSoul(preset.text(newName, newRole, newDivision))}
+                className="text-[11px] rounded border border-indigo-700/60 bg-indigo-900/40 px-2 py-1 text-indigo-200 hover:bg-indigo-800/60 hover:text-white transition-colors"
+                title={preset.desc}
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+
+          <div>
+            <textarea
+              className="vp-input w-full font-mono text-[11px]"
+              value={newSoul}
+              onChange={(e) => setNewSoul(e.target.value)}
+              placeholder="Isi instruksi kerja & kepribadian agent... (Kosong = otomatis memakai template anti-halusinasi standar per role)"
+              rows={4}
+            />
+          </div>
+        </div>
+
+        {/* ---------------- 3. SKILL & DOMAIN SPESIFIK ---------------- */}
+        <div className="rounded border border-slate-800 bg-slate-800/40 p-3 space-y-2.5">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-300 uppercase tracking-wider">
+            <span>⚡</span> 3. SKILL & DOMAIN KEAHLIAN SPESIFIK (COMPETENCIES)
+          </div>
+
+          <p className="text-[11px] text-slate-400">
+            Daftar kompetensi atau domain topik spesifik yang dikuasai agent (pisahkan dengan koma). Membantu kantor memetakan keahlian agent ke task yang sesuai:
+          </p>
+
+          <input
+            className="vp-input w-full"
+            value={newDomains}
+            onChange={(e) => setNewDomains(e.target.value)}
+            placeholder="cth: nodejs, postgresql, docker, rest-api (pisah dengan koma)"
+          />
+
+          {/* Rekomendasi skill instan sesuai role */}
+          {SKILL_SUGGESTIONS[newRole] && (
+            <div className="pt-1">
+              <span className="text-[10px] text-slate-400 block mb-1">Rekomendasi skill untuk role ini (klik untuk menambahkan):</span>
+              <div className="flex flex-wrap gap-1">
+                {SKILL_SUGGESTIONS[newRole].map((skill) => {
+                  const currentList = newDomains.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean)
+                  const has = currentList.includes(skill)
+                  return (
+                    <button
+                      key={skill}
+                      type="button"
+                      disabled={has}
+                      onClick={() => {
+                        const updated = has ? currentList : [...currentList, skill]
+                        setNewDomains(updated.join(', '))
+                      }}
+                      className={`text-[10px] rounded px-1.5 py-0.5 border ${
+                        has
+                          ? 'border-emerald-700 bg-emerald-950/60 text-emerald-300 opacity-60'
+                          : 'border-slate-700 bg-slate-800 text-slate-300 hover:border-slate-500 hover:text-white'
+                      }`}
+                    >
+                      {has ? '✓ ' : '+ '}
+                      {skill}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ---------------- 4. TOOLSET HERMES (ALAT EKSEKUSI NYATA) ---------------- */}
+        <div className="rounded border border-slate-800 bg-slate-800/40 p-3 space-y-2.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-300 uppercase tracking-wider">
+              <span>🛠️</span> 4. TOOLSET HERMES (ALAT EKSEKUSI NYATA)
+            </div>
+            <span className="text-[10px] text-slate-400">
+              {newToolsets.length ? `${newToolsets.length} terpilih` : 'Semua tool diizinkan'}
+            </span>
+          </div>
+
+          <p className="text-[11px] text-slate-400">
+            Alat eksekusi resmi dari platform Hermes yang diumumkan di agent card. Kosongkan jika ingin mengizinkan seluruh toolset:
+          </p>
+
+          <div className="flex flex-wrap gap-1 max-h-28 overflow-y-auto p-1 rounded bg-slate-950/40 border border-slate-800">
+            {toolsetCatalog.map((t) => {
+              const on = newToolsets.includes(t.name)
+              return (
+                <button
+                  key={t.name}
+                  type="button"
+                  className={`vp-chip-btn ${on ? 'on' : ''}`}
+                  disabled={creating}
+                  onClick={() =>
+                    setNewToolsets((prev) => (prev.includes(t.name) ? prev.filter((x) => x !== t.name) : [...prev, t.name]))
+                  }
+                  title={`${t.name}${t.enabled ? '' : ' (nonaktif di install ini)'}`}
+                  style={{ opacity: t.enabled ? 1 : 0.55 }}
+                >
+                  {on ? '✓ ' : ''}{t.name}
+                </button>
+              )
+            })}
+            {!toolsetCatalog.length && <span className="vp-muted text-[11px]">memuat daftar toolset…</span>}
+          </div>
+        </div>
+
+        {/* ---------------- 5. MODEL AI AGENT ---------------- */}
+        <div className="rounded border border-slate-800 bg-slate-800/40 p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-300 uppercase tracking-wider">
+              <span>🤖</span> 5. MODEL AI AGENT (BRAIN)
+            </div>
+            <span className="text-[10px] text-emerald-300 bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-800/50">
+              Default: Profile Hermes
+            </span>
+          </div>
+
+          <p className="text-[11px] text-slate-400">
+            Pilih model AI khusus untuk agent ini, atau biarkan kosong untuk otomatis <b>mengikuti model default profile Hermes</b>:
+          </p>
+
+          <ModelPicker
+            value={newModel}
+            onChange={setNewModel}
+            models={models}
+            disabled={creating}
+            emptyLabel="Mengikuti Default Profile Hermes"
+            title="Model untuk agent baru ini (kosong = otomatis mengikuti default Hermes)"
+          />
+        </div>
+
+        {/* ---------------- 6. KONEKSI AGENT-TO-AGENT (A2A) ---------------- */}
+        <div className="rounded border border-slate-800 bg-slate-800/40 p-3">
+          <label className="flex items-start gap-2.5 cursor-pointer">
+            <input
+              type="checkbox"
+              className="mt-0.5 rounded border-slate-600 bg-slate-800 text-indigo-500"
+              checked={newServeA2a}
+              disabled={creating}
+              onChange={(e) => setNewServeA2a(e.target.checked)}
+            />
+            <div className="text-[11px]">
+              <span className="font-semibold text-slate-200 block">
+                Bisa dihubungi agent lain (A2A) — otomatis terdaftar A2A; berlaku setelah gateway di-restart
+              </span>
+              <span className="text-slate-400 block mt-0.5">
+                Mendaftarkan profil ini ke platforms.a2a.agents (local:false) agar agent lain dapat memanggil dan berkoordinasi.
+              </span>
+            </div>
+          </label>
+        </div>
+
+        {/* Tombol Buat Profil */}
+        <div className="pt-2 flex items-center gap-2">
+          <button
+            className="vp-btn flex-1 py-2 font-semibold text-sm shadow-md"
+            disabled={creating || !newName.trim()}
+            onClick={create}
+          >
+            {creating ? 'Membuat Profil Agent…' : '✨ Buat Profil Agent Baru'}
+          </button>
+          <button className="vp-btn vp-btn-rosy py-2" disabled={!!busy} onClick={load}>
+            Segarkan
+          </button>
+        </div>
+      </div>
 
       {/*
         Pemetaan domain→pemilik (dipakai office, bukan A2A). Domain tanpa
