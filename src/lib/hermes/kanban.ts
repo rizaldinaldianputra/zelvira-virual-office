@@ -11,6 +11,7 @@
  * strips those markers so the office UI can drive the board from a web request.
  */
 import { execFile } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { access, readFile, readdir, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -26,6 +27,53 @@ import { readVerification, splitVerificationBatch, type VerificationMark, type V
 const run = promisify(execFile)
 
 const HERMES_BIN = process.env.HERMES_BIN || 'hermes'
+
+function resolveHermesExec(): { bin: string; prefix: string[] } {
+  const envBin = process.env.HERMES_BIN
+  if (envBin && existsSync(envBin)) {
+    return { bin: envBin, prefix: [] }
+  }
+  if (existsSync('/usr/local/bin/hermes')) {
+    return { bin: '/usr/local/bin/hermes', prefix: [] }
+  }
+  const fallback = path.resolve(process.cwd(), 'scripts/hermes-fallback.js')
+  if (existsSync(fallback)) {
+    return { bin: process.execPath, prefix: [fallback] }
+  }
+  return { bin: envBin || 'hermes', prefix: [] }
+}
+
+async function runHermes(
+  args: string[],
+  options?: Parameters<typeof run>[2],
+): Promise<{ stdout: string; stderr: string }> {
+  const { bin, prefix } = resolveHermesExec()
+  const fullArgs = [...prefix, ...args]
+  try {
+    const res = await run(bin, fullArgs, options)
+    return {
+      stdout: String(res.stdout),
+      stderr: String(res.stderr),
+    }
+  } catch (err) {
+    const e = err as NodeJS.ErrnoException & { stderr?: string }
+    if (e.code === 'ENOENT') {
+      const fallback = path.resolve(process.cwd(), 'scripts/hermes-fallback.js')
+      if (existsSync(fallback) && bin !== process.execPath) {
+        const res = await run(process.execPath, [fallback, ...args], options)
+        return {
+          stdout: String(res.stdout),
+          stderr: String(res.stderr),
+        }
+      }
+      throw new Error(
+        `Hermes CLI not found at "${bin}". Set HERMES_BIN to the hermes executable.`,
+      )
+    }
+    throw err
+  }
+}
+
 const BOARD = process.env.HERMES_KANBAN_BOARD || ''
 const TIMEOUT_MS = Number(process.env.KANBAN_TIMEOUT_MS || 20_000)
 
@@ -74,7 +122,7 @@ async function kanban(args: string[], board?: string): Promise<string> {
     readCache.clear()
   }
   try {
-    const { stdout } = await run(HERMES_BIN, full, {
+    const { stdout } = await runHermes(full, {
       env: cleanEnv(),
       timeout: TIMEOUT_MS,
       maxBuffer: 8 * 1024 * 1024,
@@ -443,7 +491,7 @@ async function hermesJson<T>(args: string[]): Promise<T> {
   const out =
     hit && Date.now() - hit.at < READ_TTL_MS
       ? hit.out
-      : await run(HERMES_BIN, args, { env: cleanEnv(), timeout: TIMEOUT_MS, maxBuffer: 8 * 1024 * 1024 })
+      : await runHermes(args, { env: cleanEnv(), timeout: TIMEOUT_MS, maxBuffer: 8 * 1024 * 1024 })
           .then(({ stdout }) => {
             readCache.set(cacheKey, { at: Date.now(), out: stdout })
             return stdout
@@ -938,7 +986,7 @@ export async function ensureProviderDef(name: string, provider: string): Promise
 async function hermesWrite(args: string[]): Promise<string> {
   readCache.clear()
   try {
-    const { stdout } = await run(HERMES_BIN, args, {
+    const { stdout } = await runHermes(args, {
       env: cleanEnv(),
       timeout: TIMEOUT_MS,
       maxBuffer: 8 * 1024 * 1024,
@@ -1129,7 +1177,7 @@ export async function createProfile(
   const desc = (opts?.description || `${clean} — ${role}, divisi ${division}`).trim().slice(0, 200)
   const args = ['profile', 'create', clean, '--no-alias', '--description', desc]
   try {
-    await run(HERMES_BIN, args, { env: cleanEnv(), timeout: 60_000, maxBuffer: 8 * 1024 * 1024 })
+    await runHermes(args, { env: cleanEnv(), timeout: 60_000, maxBuffer: 8 * 1024 * 1024 })
   } catch (err) {
     const e = err as NodeJS.ErrnoException & { stderr?: string }
     if (e.code === 'ENOENT') {
@@ -1223,7 +1271,7 @@ export async function deleteProfile(name: string): Promise<void> {
     )
   }
   try {
-    await run(HERMES_BIN, ['profile', 'delete', clean, '--yes'], {
+    await runHermes(['profile', 'delete', clean, '--yes'], {
       env: cleanEnv(),
       timeout: 60_000,
       maxBuffer: 8 * 1024 * 1024,

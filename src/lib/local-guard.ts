@@ -38,10 +38,16 @@ const LOOPBACK = new Set(['localhost', '127.0.0.1', '[::1]'])
  *
  *   ALLOWED_ORIGINS=203.0.113.10:3300,office.example.com
  */
-function configuredHosts(): string[] {
+function rawConfiguredEntries(): string[] {
   return (process.env.ALLOWED_ORIGINS || '')
     .split(',')
-    .map((s) => s.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/+$/, ''))
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean)
+}
+
+function configuredHosts(): string[] {
+  return rawConfiguredEntries()
+    .map((s) => s.replace(/^https?:\/\//, '').replace(/\/+$/, ''))
     .filter(Boolean)
 }
 
@@ -64,10 +70,28 @@ export function localOriginAllowed(hostHeader: string | null, originHeader: stri
     const origin = new URL(originHeader)
     // 1. same-origin: the Origin names the host being requested
     if (origin.host !== host.host) return false
-    // the office is served over plain http; an https origin is a different origin
-    if (origin.protocol !== 'http:') return false
     // 2. and that host is one we trust
-    return trustedHost(host.host)
+    if (!trustedHost(host.host)) return false
+
+    // HTTP is always allowed for trusted hosts
+    if (origin.protocol === 'http:') return true
+
+    // HTTPS: allowed for public domain deployments or when explicitly configured
+    if (origin.protocol === 'https:') {
+      const bare = bareHost(host.host)
+      // Disallow loopback localhost over https (preserves scheme mismatch check)
+      if (LOOPBACK.has(bare)) return false
+      // Disallow plain IP addresses unless explicitly configured with https://
+      const isPlainIp = /^\d+\.\d+\.\d+\.\d+/.test(bare)
+      if (isPlainIp) {
+        const raw = rawConfiguredEntries()
+        return raw.some((e) => e.startsWith('https://') && (e.includes(host.host) || e.includes(bare)))
+      }
+      // For any configured domain name (e.g. office.zelixa.my.id, office.example.com):
+      return true
+    }
+
+    return false
   } catch {
     return false
   }

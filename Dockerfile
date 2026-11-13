@@ -30,7 +30,9 @@ COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/next.config.mjs ./next.config.mjs
 COPY --from=builder /app/scripts ./scripts
 
-RUN mkdir -p /app/data /root/.hermes
+RUN mkdir -p /app/data /root/.hermes && \
+    cp /app/scripts/hermes-fallback.js /usr/local/bin/hermes && \
+    chmod +x /usr/local/bin/hermes
 
 VOLUME ["/app/data"]
 EXPOSE 3000

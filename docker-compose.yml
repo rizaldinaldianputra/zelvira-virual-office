@@ -15,11 +15,15 @@ services:
       - OFFICE_DB_PATH=/app/data/office.db
       - HERMES_HOME=/root/.hermes
       - HERMES_BIN=/usr/local/bin/hermes
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-https://office.zelixa.my.id,office.zelixa.my.id,localhost:3000,127.0.0.1:3000}
       - AI_BASE_URL=${AI_BASE_URL:-}
       - AI_API_KEY=${AI_API_KEY:-}
       - AI_MODEL=${AI_MODEL:-}
     volumes:
       - office-data:/app/data
+      # Opsional: Jika Hermes terinstall di host, uncomment baris berikut:
+      # - ${HERMES_HOME:-~/.hermes}:/root/.hermes
+      # - ${HERMES_BIN:-/usr/local/bin/hermes}:/usr/local/bin/hermes:ro
     healthcheck:
       test: ["CMD-SHELL", "node -e 'require(\"http\").get(\"http://127.0.0.1:3000\", (r) => { process.exit(r.statusCode === 200 || r.statusCode === 304 ? 0 : 1); })'"]
       interval: 30s
