@@ -486,6 +486,14 @@ export async function POST(req: NextRequest) {
         } catch (err) {
           modelError = (err as Error).message
         }
+      } else {
+        // Otomatis sinkronkan profil baru ke model default Hermes (misal nvidia/nemotron-3-ultra-55)
+        // agar profil tidak tertinggal di bawaan CLI gpt-4o-mini
+        try {
+          await resetProfileModelToDefault(created.name)
+        } catch (err) {
+          console.error('Gagal menerapkan model default ke profil baru:', err)
+        }
       }
       // A brand-new profile carries no kill-list entry, so it appears on the next
       // poll — no need to touch membership.

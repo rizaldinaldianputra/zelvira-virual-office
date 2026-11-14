@@ -289,6 +289,61 @@ export default function SystemPanel({ open, onClose }: { open: boolean; onClose:
     }
   }
 
+  const [reloadingAll, setReloadingAll] = useState(false)
+  const [reloadMsg, setReloadMsg] = useState<{ type: 'ok' | 'err'; text: string; manualCmd?: string } | null>(null)
+
+  const handleReloadAllHermes = async () => {
+    setReloadingAll(true)
+    setReloadMsg(null)
+    try {
+      // 1. Sinkronkan seluruh profil agent ke model default Hermes (misal nvidia/nemotron-3-ultra-55)
+      const syncRes = await fetchJson<{ success: boolean; profilesUpdated?: string[]; defaultModel?: string }>('/api/hermes/models', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'syncAll' }),
+      })
+      if (!syncRes.ok) {
+        throw new Error(syncRes.error || 'Gagal menyamakan profil ke model default')
+      }
+
+      // 2. Jadwalkan restart gateway Hermes
+      const restartRes = await fetchJson<{
+        success: boolean
+        scheduled?: boolean
+        message?: string
+        manual?: string[]
+      }>('/api/hermes/gateway-restart', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirm: true }),
+      })
+
+      const defModel = syncRes.data?.defaultModel || modelData?.defaultModel || 'default'
+      const updatedCount = syncRes.data?.profilesUpdated?.length ?? 0
+
+      if (restartRes.ok && restartRes.data?.scheduled) {
+        setReloadMsg({
+          type: 'ok',
+          text: `✅ Sukses! ${updatedCount} profil agent disamakan ke model "${defModel}", dan Gateway Hermes dijadwalkan restart.`,
+        })
+      } else {
+        setReloadMsg({
+          type: 'ok',
+          text: `✅ ${updatedCount} profil agent disamakan ke model "${defModel}". Gateway restart dapat dipicu manual: hermes gateway restart`,
+          manualCmd: 'hermes gateway restart',
+        })
+      }
+
+      await load()
+      await loadModels()
+      await loadRestart()
+    } catch (e) {
+      setReloadMsg({ type: 'err', text: (e as Error).message })
+    } finally {
+      setReloadingAll(false)
+    }
+  }
+
   const load = useCallback(async () => {
     setBusy(true)
     try {
@@ -404,6 +459,68 @@ export default function SystemPanel({ open, onClose }: { open: boolean; onClose:
       )}
 
       {notice && <div className="mb-4 rounded border border-slate-600 bg-slate-800/60 p-2 text-xs">{notice}</div>}
+
+      {/* ---------- RELOAD SEMUA HERMES ---------- */}
+      <section className="mb-6 rounded-lg border border-rose-700/60 bg-gradient-to-r from-slate-900 via-rose-950/20 to-slate-900 p-4 text-xs shadow-lg">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="space-y-1 max-w-xl">
+            <div className="flex items-center gap-2">
+              <span className="text-base">⚡</span>
+              <h3 className="font-bold text-sm uppercase tracking-wide text-rose-300">
+                Reload & Restart Semua Hermes
+              </h3>
+            </div>
+            <p className="text-[11px] text-slate-300 leading-relaxed">
+              Terapkan model default ({modelData?.defaultModel || 'nvidia/nemotron-3-ultra-55'}) ke seluruh profil agent (`contencreator`, `seo`, dll), perbarui konfigurasi provider di scope profil, bersihkan cache, dan restart gateway Hermes agar seluruh agent langsung sinkron.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleReloadAllHermes}
+              disabled={reloadingAll || modelBusy}
+              className="rounded-lg bg-rose-600 hover:bg-rose-500 font-bold px-4 py-2.5 text-white shadow-lg transition-all flex items-center gap-2 disabled:opacity-50 text-xs cursor-pointer"
+            >
+              {reloadingAll ? (
+                <>
+                  <span className="animate-spin">⏳</span>
+                  <span>Sedang Me-reload Semua Hermes…</span>
+                </>
+              ) : (
+                <>
+                  <span>🔄</span>
+                  <span>Reload & Restart Semua Hermes</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {reloadMsg && (
+          <div
+            className={`mt-3 p-2.5 rounded border text-xs flex justify-between items-center ${
+              reloadMsg.type === 'ok'
+                ? 'bg-emerald-950/60 border-emerald-700 text-emerald-300'
+                : 'bg-red-950/60 border-red-700 text-red-300'
+            }`}
+          >
+            <div>
+              <span>{reloadMsg.text}</span>
+              {reloadMsg.manualCmd && (
+                <code className="block mt-1 font-mono text-[10px] bg-slate-950 p-1 rounded text-slate-200">
+                  {reloadMsg.manualCmd}
+                </code>
+              )}
+            </div>
+            <button
+              onClick={() => setReloadMsg(null)}
+              className="text-slate-400 hover:text-white ml-2 text-sm font-bold"
+            >
+              ×
+            </button>
+          </div>
+        )}
+      </section>
 
       {/* ---------- PENGATURAN MODEL AGENT & API KEY ---------- */}
       <section className="mb-6 rounded-lg border border-indigo-700/60 bg-gradient-to-b from-slate-900 to-indigo-950/30 p-4 text-xs shadow-lg">

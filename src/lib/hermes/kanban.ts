@@ -620,10 +620,11 @@ export async function setProfileModel(
   // `model.provider` has to be the QUALIFIED slug (`custom:9router`) — that is
   // what `hermes model` itself writes. A bare name is accepted by
   // `kanban set-model` (its own resolver) but not here, so qualify it.
-  const qualified = provider
-    ? provider.includes(':')
-      ? provider
-      : `custom:${provider.trim().toLowerCase()}`
+  const rawProv = provider || ((model && model.toLowerCase().startsWith('nvidia/')) ? 'nvidia' : null)
+  const qualified = rawProv
+    ? rawProv.includes(':')
+      ? rawProv
+      : `custom:${rawProv.trim().toLowerCase()}`
     : null
   const customName =
     qualified && qualified.trim().toLowerCase().startsWith('custom:')
@@ -741,7 +742,11 @@ export async function getHermesDefaultModel(): Promise<{ model: string | null; p
     }
   } catch {}
 
-  return { model: process.env.AI_MODEL || null, provider: null }
+  const fallbackModel = process.env.AI_MODEL || 'nvidia/nemotron-3-ultra-55'
+  return {
+    model: fallbackModel,
+    provider: fallbackModel.toLowerCase().startsWith('nvidia/') ? 'nvidia' : null,
+  }
 }
 
 /**
@@ -833,6 +838,7 @@ export async function syncAllProfilesToDefault(
   const profilesUpdated: string[] = []
 
   for (const p of profiles) {
+    if (p === 'default') continue
     try {
       await setProfileModel(p, model, provider)
       profilesUpdated.push(p)
