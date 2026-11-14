@@ -470,7 +470,39 @@ export function providersToModels(raw: RawProvider[]): ModelChoice[] {
 }
 
 export async function listModels(): Promise<ModelChoice[]> {
-  return providersToModels(await kanbanConfig<RawProvider[]>('custom_providers'))
+  let rawList = await kanbanConfig<RawProvider[]>('custom_providers').catch(() => [] as RawProvider[])
+  if (!Array.isArray(rawList) || !rawList.length) {
+    try {
+      const home = hermesHome()
+      for (const f of ['config.yaml', 'config.yml', 'config.json']) {
+        const p = path.join(home, f)
+        if (existsSync(p)) {
+          const text = await readFile(p, 'utf8')
+          let parsed: Record<string, unknown> | null = null
+          if (f.endsWith('.json')) {
+            parsed = JSON.parse(text)
+          } else {
+            const YAML = await import('yaml').then((m) => m.default || m).catch(() => null)
+            if (YAML) parsed = YAML.parse(text)
+          }
+          if (Array.isArray(parsed?.custom_providers) && parsed.custom_providers.length) {
+            rawList = parsed.custom_providers as RawProvider[]
+            break
+          }
+        }
+      }
+    } catch {}
+  }
+  const choices = providersToModels(Array.isArray(rawList) ? rawList : [])
+  const def = await getHermesDefaultModel().catch(() => ({ model: null, provider: null }))
+  if (def.model && !choices.some((c) => c.model === def.model)) {
+    choices.unshift({
+      model: def.model,
+      provider: def.provider || 'hermes-default',
+      label: `${def.model} · ${def.provider || 'default (Hermes)'}`,
+    })
+  }
+  return choices
 }
 
 export type RawProvider = {
@@ -635,11 +667,44 @@ export async function getHermesDefaultModel(): Promise<{ model: string | null; p
       'model',
       '--json',
     ])
-    if (typeof raw === 'string') return { model: raw || null, provider: null }
-    return { model: raw?.default || null, provider: raw?.provider || null }
+    if (typeof raw === 'string') return { model: raw.trim() || null, provider: null }
+    if (raw && typeof raw === 'object' && (raw.default || raw.provider)) {
+      return { model: raw.default || null, provider: raw.provider || null }
+    }
   } catch {
-    return { model: process.env.AI_MODEL || null, provider: null }
+    // try direct read fallback below
   }
+
+  // Direct read fallback from config.yaml in hermesHome():
+  try {
+    const home = hermesHome()
+    for (const f of ['config.yaml', 'config.yml', 'config.json']) {
+      const p = path.join(home, f)
+      if (existsSync(p)) {
+        const text = await readFile(p, 'utf8')
+        if (f.endsWith('.json')) {
+          const parsed = JSON.parse(text)
+          if (parsed?.model) {
+            const m = parsed.model
+            if (typeof m === 'string') return { model: m, provider: null }
+            return { model: m.default || null, provider: m.provider || null }
+          }
+        } else {
+          const YAML = await import('yaml').then((m) => m.default || m).catch(() => null)
+          if (YAML) {
+            const parsed = YAML.parse(text)
+            if (parsed?.model) {
+              const m = parsed.model
+              if (typeof m === 'string') return { model: m, provider: null }
+              return { model: m.default || null, provider: m.provider || null }
+            }
+          }
+        }
+      }
+    }
+  } catch {}
+
+  return { model: process.env.AI_MODEL || null, provider: null }
 }
 
 /**

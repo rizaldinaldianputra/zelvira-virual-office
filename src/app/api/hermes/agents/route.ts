@@ -172,6 +172,7 @@ export async function POST(req: NextRequest) {
     action !== 'kill' &&
     action !== 'create' &&
     action !== 'set-model' &&
+    action !== 'update' &&
     action !== 'serve' &&
     action !== 'unserve'
   ) {
@@ -179,7 +180,7 @@ export async function POST(req: NextRequest) {
       {
         error: {
           code: 'invalid_request',
-          message: "action must be 'spawn', 'hide', 'kill', 'create', 'set-model', 'serve' or 'unserve'",
+          message: "action must be 'spawn', 'hide', 'kill', 'create', 'set-model', 'update', 'serve' or 'unserve'",
           status: 400,
         },
       },
@@ -355,6 +356,70 @@ export async function POST(req: NextRequest) {
         { status: 502 },
       )
     }
+  }
+
+  if (action === 'update') {
+    const clean = name.trim().toLowerCase()
+    const profiles = await listProfiles()
+    if (!profiles.includes(clean)) {
+      return NextResponse.json(
+        { error: { code: 'not_found', message: `profil "${clean}" tidak ada di disk`, status: 404 } },
+        { status: 404 },
+      )
+    }
+
+    const role = (typeof body?.role === 'string' && body.role.trim() ? body.role.trim() : undefined) as AgentRole | undefined
+    const division = (typeof body?.division === 'string' && body.division.trim() ? body.division.trim() : undefined) as AgentDivision | undefined
+    const domains = typeof body?.domains === 'string' ? parseDomains(body.domains) : undefined
+
+    const dir = path.join(hermesHome(), 'profiles', clean)
+    const pSoul = path.join(dir, 'SOUL.md')
+    try {
+      const { readFile, writeFile } = await import('node:fs/promises')
+      let currentSoul = ''
+      try {
+        currentSoul = await readFile(pSoul, 'utf8')
+      } catch {}
+
+      const newSoulText = typeof body?.soul === 'string' && body.soul.trim() ? body.soul.trim() : currentSoul
+      const curRole = role ?? 'backend'
+      const curDiv = division ?? 'tech'
+      const curDom = domains ?? []
+
+      const soulWithMarker = /<!-- office:[\s\S]*?-->/.test(newSoulText)
+        ? newSoulText.replace(/<!-- office:[\s\S]*?-->/, `<!-- office: role=${curRole} division=${curDiv}${curDom.length ? ` domains=${curDom.join(',')}` : ''} -->`)
+        : `${newSoulText}\n<!-- office: role=${curRole} division=${curDiv}${curDom.length ? ` domains=${curDom.join(',')}` : ''} -->`
+
+      await writeFile(pSoul, soulWithMarker, 'utf8')
+
+      if (typeof body?.description === 'string' && body.description.trim()) {
+        await writeFile(path.join(dir, 'description.txt'), body.description.trim().slice(0, 200), 'utf8').catch(() => {})
+      }
+    } catch (e) {
+      console.error('Gagal update SOUL.md agent:', e)
+    }
+
+    let modelUpdated: string | null = null
+    if (body?.model) {
+      const model = String(body.model).trim()
+      const provider = body?.provider ? String(body.provider).trim() : null
+      try {
+        await setProfileModel(clean, model, provider)
+        modelUpdated = model
+      } catch (err) {
+        console.error('Gagal update profile model:', err)
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      action: 'update',
+      name: clean,
+      role,
+      division,
+      domains,
+      modelUpdated,
+    })
   }
 
   // Creating a profile is a different operation: it makes the profile, writes

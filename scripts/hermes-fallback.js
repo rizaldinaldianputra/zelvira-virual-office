@@ -12,8 +12,12 @@ const fs = require('node:fs')
 const path = require('node:path')
 const os = require('node:os')
 
+let YAML = null
+try {
+  YAML = require('yaml')
+} catch {}
+
 const hermesDir = process.env.HERMES_HOME || path.join(os.homedir(), '.hermes')
-const configFile = path.join(hermesDir, 'config.json')
 const kanbanFile = path.join(hermesDir, 'kanban.json')
 const profilesDir = path.join(hermesDir, 'profiles')
 
@@ -22,6 +26,77 @@ try {
   fs.mkdirSync(hermesDir, { recursive: true })
   fs.mkdirSync(profilesDir, { recursive: true })
 } catch {}
+
+function parseSimpleYaml(content) {
+  const result = {}
+  let currentKey = null
+  for (const line of content.split('\n')) {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith('#')) continue
+    const m = line.match(/^([a-zA-Z0-9_-]+):\s*(.*)$/)
+    if (m) {
+      currentKey = m[1]
+      const val = m[2].trim()
+      if (val) {
+        result[currentKey] = val.replace(/^['"]|['"]$/g, '')
+      } else {
+        result[currentKey] = {}
+      }
+      continue
+    }
+    const subMatch = line.match(/^\s+([a-zA-Z0-9_-]+):\s*(.*)$/)
+    if (subMatch && currentKey && typeof result[currentKey] === 'object') {
+      const k = subMatch[1]
+      const v = subMatch[2].trim().replace(/^['"]|['"]$/g, '')
+      result[currentKey][k] = v
+    }
+  }
+  return result
+}
+
+function readConfigFromDir(dir) {
+  const yamlFile = path.join(dir, 'config.yaml')
+  const ymlFile = path.join(dir, 'config.yml')
+  const jsonFile = path.join(dir, 'config.json')
+
+  try {
+    if (fs.existsSync(yamlFile)) {
+      const content = fs.readFileSync(yamlFile, 'utf8')
+      if (YAML) return { data: YAML.parse(content) || {}, type: 'yaml', path: yamlFile }
+      return { data: parseSimpleYaml(content), type: 'yaml', path: yamlFile }
+    }
+    if (fs.existsSync(ymlFile)) {
+      const content = fs.readFileSync(ymlFile, 'utf8')
+      if (YAML) return { data: YAML.parse(content) || {}, type: 'yaml', path: ymlFile }
+      return { data: parseSimpleYaml(content), type: 'yaml', path: ymlFile }
+    }
+    if (fs.existsSync(jsonFile)) {
+      return { data: JSON.parse(fs.readFileSync(jsonFile, 'utf8')), type: 'json', path: jsonFile }
+    }
+  } catch (err) {
+    console.error('Config read error:', err)
+  }
+  return { data: null, type: 'yaml', path: yamlFile }
+}
+
+function saveConfigToDir(dir, data, preferredType = 'yaml') {
+  fs.mkdirSync(dir, { recursive: true })
+  const yamlFile = path.join(dir, 'config.yaml')
+  const jsonFile = path.join(dir, 'config.json')
+
+  if (preferredType === 'json' || (!fs.existsSync(yamlFile) && fs.existsSync(jsonFile))) {
+    fs.writeFileSync(jsonFile, JSON.stringify(data, null, 2), 'utf8')
+    return
+  }
+
+  if (YAML) {
+    try {
+      fs.writeFileSync(yamlFile, YAML.stringify(data), 'utf8')
+      return
+    } catch {}
+  }
+  fs.writeFileSync(jsonFile, JSON.stringify(data, null, 2), 'utf8')
+}
 
 function readJsonFile(file, fallback = {}) {
   try {
@@ -79,19 +154,20 @@ if (sub === 'config') {
   const key = cleanCmd[2]
   const val = cleanCmd[3]
 
-  const cfgFile = targetProfile
-    ? path.join(profilesDir, targetProfile, 'config.json')
-    : configFile
+  const targetDir = targetProfile
+    ? path.join(profilesDir, targetProfile)
+    : hermesDir
 
-  const cfg = readJsonFile(cfgFile, {
+  const { data: loadedCfg, type: cfgType } = readConfigFromDir(targetDir)
+  const cfg = loadedCfg || {
     model: {
-      default: process.env.AI_MODEL || 'gpt-4o-mini',
+      default: process.env.AI_MODEL || null,
       provider: 'custom:default',
     },
     custom_providers: [],
     approvals: { mode: 'auto' },
     platforms: { a2a: { enabled: false, port: 9900 } },
-  })
+  }
 
   if (action === 'get') {
     let out = cfg
@@ -130,7 +206,7 @@ if (sub === 'config') {
     }
     cur[parts[parts.length - 1]] = parsedVal
 
-    writeJsonFile(cfgFile, cfg)
+    saveConfigToDir(targetDir, cfg, cfgType)
     if (isJson) console.log(JSON.stringify({ success: true, key, value: parsedVal }))
     process.exit(0)
   }

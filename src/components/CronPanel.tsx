@@ -41,6 +41,78 @@ type Job = {
   repeatCompleted: number
 }
 
+type ScheduleType = 'daily' | 'workdays' | 'weekly' | 'hourly' | 'monthly' | 'custom'
+
+const DAY_LABELS = [
+  { val: 1, label: 'Sen' },
+  { val: 2, label: 'Sel' },
+  { val: 3, label: 'Rab' },
+  { val: 4, label: 'Kam' },
+  { val: 5, label: 'Jum' },
+  { val: 6, label: 'Sab' },
+  { val: 0, label: 'Min' },
+]
+
+function buildCronExpr(
+  type: ScheduleType,
+  time: string,
+  days: number[],
+  interval: string,
+  dayOfMonth: string,
+): string {
+  const [hhStr, mmStr] = (time || '09:00').split(':')
+  const hh = Number(hhStr) || 0
+  const mm = Number(mmStr) || 0
+  switch (type) {
+    case 'daily':
+      return `${mm} ${hh} * * *`
+    case 'workdays':
+      return `${mm} ${hh} * * 1-5`
+    case 'weekly': {
+      const d = days.length ? [...days].sort((a, b) => a - b).join(',') : '*'
+      return `${mm} ${hh} * * ${d}`
+    }
+    case 'hourly': {
+      const n = Math.max(1, Math.min(23, Number(interval) || 1))
+      return `0 */${n} * * *`
+    }
+    case 'monthly': {
+      const d = Math.max(1, Math.min(31, Number(dayOfMonth) || 1))
+      return `${mm} ${hh} ${d} * *`
+    }
+    case 'custom':
+    default:
+      return ''
+  }
+}
+
+function describeCron(
+  type: ScheduleType,
+  time: string,
+  days: number[],
+  interval: string,
+  dayOfMonth: string,
+  rawExpr: string,
+): string {
+  const dayNames: Record<number, string> = { 1: 'Senin', 2: 'Selasa', 3: 'Rabu', 4: 'Kamis', 5: 'Jumat', 6: 'Sabtu', 0: 'Minggu' }
+  switch (type) {
+    case 'daily':
+      return `Setiap hari pukul ${time || '09:00'}`
+    case 'workdays':
+      return `Setiap hari kerja (Senin - Jumat) pukul ${time || '09:00'}`
+    case 'weekly': {
+      const dStr = days.map((d) => dayNames[d]).join(', ') || 'Semua hari'
+      return `Setiap ${dStr} pukul ${time || '09:00'}`
+    }
+    case 'hourly':
+      return `Setiap ${interval || '1'} jam sekali (di menit ke-00)`
+    case 'monthly':
+      return `Setiap tanggal ${dayOfMonth || '1'} bulanan pukul ${time || '09:00'}`
+    case 'custom':
+      return rawExpr ? `Kustom: ${rawExpr}` : 'Masukkan ekspresi cron'
+  }
+}
+
 type Run = {
   id: string
   jobId: string
@@ -98,10 +170,25 @@ export default function CronPanel({
   const [busy, setBusy] = useState<string | null>(null)
 
   // create form
-  const [schedule, setSchedule] = useState('')
+  const [schedule, setSchedule] = useState('0 9 * * *')
   const [prompt, setPrompt] = useState('')
   const [name, setName] = useState('')
   const [liveNow, setLiveNow] = useState(false)
+
+  // schedule datetime picker state
+  const [schedMode, setSchedMode] = useState<'picker' | 'raw'>('picker')
+  const [schedType, setSchedType] = useState<ScheduleType>('daily')
+  const [timeVal, setTimeVal] = useState('09:00')
+  const [selectedDays, setSelectedDays] = useState<number[]>([1, 2, 3, 4, 5])
+  const [hourInterval, setHourInterval] = useState('2')
+  const [monthDay, setMonthDay] = useState('1')
+
+  useEffect(() => {
+    if (schedMode === 'picker') {
+      const expr = buildCronExpr(schedType, timeVal, selectedDays, hourInterval, monthDay)
+      if (expr) setSchedule(expr)
+    }
+  }, [schedMode, schedType, timeVal, selectedDays, hourInterval, monthDay])
 
   async function load() {
     setLoading(true)
@@ -381,16 +468,179 @@ export default function CronPanel({
           )}
         </>
       ) : (
-        <>
-          <label className="vp-sub">JADWAL</label>
-          <input
-            className="vp-input"
-            value={schedule}
-            onChange={(e) => setSchedule(e.target.value)}
-            placeholder="30m  ·  every 2h  ·  0 9 * * *"
-          />
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between border-b border-slate-700 pb-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-indigo-300 flex items-center gap-1.5">
+              <span>⏰</span> PENGATUR WAKTU & JADWAL (CRON)
+            </span>
+            <div className="flex rounded bg-slate-800 p-0.5 text-[11px]">
+              <button
+                type="button"
+                className={`px-2 py-0.5 rounded transition-colors ${schedMode === 'picker' ? 'bg-indigo-600 text-white font-medium' : 'text-slate-400 hover:text-white'}`}
+                onClick={() => {
+                  setSchedMode('picker')
+                  const expr = buildCronExpr(schedType, timeVal, selectedDays, hourInterval, monthDay)
+                  if (expr) setSchedule(expr)
+                }}
+              >
+                Pilih Waktu (Visual)
+              </button>
+              <button
+                type="button"
+                className={`px-2 py-0.5 rounded transition-colors ${schedMode === 'raw' ? 'bg-indigo-600 text-white font-medium' : 'text-slate-400 hover:text-white'}`}
+                onClick={() => setSchedMode('raw')}
+              >
+                Format Cron Manual
+              </button>
+            </div>
+          </div>
 
-          <label className="vp-sub">PROMPT</label>
+          {schedMode === 'picker' ? (
+            <div className="rounded border border-slate-700 bg-slate-900/60 p-3 space-y-3">
+              <div>
+                <label className="block text-[11px] font-medium text-slate-400 mb-1.5">
+                  Frekuensi Eksekusi:
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 text-xs">
+                  {[
+                    { id: 'daily' as ScheduleType, label: '☀️ Setiap Hari' },
+                    { id: 'workdays' as ScheduleType, label: '💼 Hari Kerja (Sen-Jum)' },
+                    { id: 'weekly' as ScheduleType, label: '📅 Hari Tertentu' },
+                    { id: 'hourly' as ScheduleType, label: '⏱️ Interval Jam' },
+                    { id: 'monthly' as ScheduleType, label: '📆 Tanggal Bulanan' },
+                  ].map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className={`px-2.5 py-1.5 rounded text-left border text-[11px] transition-colors ${
+                        schedType === item.id
+                          ? 'border-indigo-500 bg-indigo-950/70 text-indigo-200 font-semibold shadow-sm'
+                          : 'border-slate-800 bg-slate-800/40 text-slate-400 hover:border-slate-700'
+                      }`}
+                      onClick={() => setSchedType(item.id)}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Time Picker (for daily, workdays, weekly, monthly) */}
+              {schedType !== 'hourly' && (
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-400 mb-1">
+                    Jam & Menit Eksekusi (Time):
+                  </label>
+                  <input
+                    type="time"
+                    className="vp-input w-full max-w-[180px] text-sm font-mono"
+                    value={timeVal}
+                    onChange={(e) => setTimeVal(e.target.value)}
+                  />
+                  <span className="text-[10px] text-slate-500 block mt-0.5">
+                    Job akan berjalan otomatis pada jam dan menit ini.
+                  </span>
+                </div>
+              )}
+
+              {/* Weekly Day Selector */}
+              {schedType === 'weekly' && (
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-400 mb-1">
+                    Pilih Hari Eksekusi:
+                  </label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {DAY_LABELS.map((d) => {
+                      const sel = selectedDays.includes(d.val)
+                      return (
+                        <button
+                          key={d.val}
+                          type="button"
+                          className={`vp-chip-btn ${sel ? 'on' : ''}`}
+                          onClick={() => {
+                            setSelectedDays((prev) =>
+                              prev.includes(d.val) ? prev.filter((x) => x !== d.val) : [...prev, d.val],
+                            )
+                          }}
+                        >
+                          {sel ? '✓ ' : ''}{d.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Hourly Interval Selector */}
+              {schedType === 'hourly' && (
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-400 mb-1">
+                    Interval Waktu (Setiap berapa jam):
+                  </label>
+                  <select
+                    className="vp-input w-full max-w-[220px]"
+                    value={hourInterval}
+                    onChange={(e) => setHourInterval(e.target.value)}
+                  >
+                    <option value="1">Setiap 1 Jam</option>
+                    <option value="2">Setiap 2 Jam</option>
+                    <option value="3">Setiap 3 Jam</option>
+                    <option value="4">Setiap 4 Jam</option>
+                    <option value="6">Setiap 6 Jam</option>
+                    <option value="12">Setiap 12 Jam</option>
+                  </select>
+                </div>
+              )}
+
+              {/* Monthly Day of Month Selector */}
+              {schedType === 'monthly' && (
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-400 mb-1">
+                    Tanggal Eksekusi Bulanan (1 - 31):
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="31"
+                    className="vp-input w-28 text-sm"
+                    value={monthDay}
+                    onChange={(e) => setMonthDay(e.target.value)}
+                  />
+                  <span className="text-[10px] text-slate-500 block mt-0.5">
+                    Dijalankan pada tanggal ini setiap bulannya.
+                  </span>
+                </div>
+              )}
+
+              {/* Preview Box */}
+              <div className="rounded bg-indigo-950/40 border border-indigo-800/40 p-2.5 text-xs text-indigo-300 flex flex-wrap items-center justify-between gap-2">
+                <span>
+                  ⏰ <b>{describeCron(schedType, timeVal, selectedDays, hourInterval, monthDay, schedule)}</b>
+                </span>
+                <span className="flex items-center gap-1.5 text-[11px]">
+                  <span className="text-slate-400">Ekspresi:</span>
+                  <code className="font-mono bg-slate-900 px-2 py-0.5 rounded text-indigo-200 border border-slate-700">
+                    {schedule || '—'}
+                  </code>
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              <label className="vp-sub">EKSPRESI CRON (MANUAL)</label>
+              <input
+                className="vp-input w-full font-mono text-xs"
+                value={schedule}
+                onChange={(e) => setSchedule(e.target.value)}
+                placeholder="30m  ·  every 2h  ·  0 9 * * *"
+              />
+              <span className="text-[10px] text-slate-500 block">
+                Format ekspresi cron standar (misal: <code>0 9 * * 1-5</code>) atau interval shorthand Hermes.
+              </span>
+            </div>
+          )}
+
+          <label className="vp-sub">PROMPT PERINTAH</label>
           <textarea
             className="vp-input"
             rows={3}
@@ -399,7 +649,7 @@ export default function CronPanel({
             placeholder="perintah"
           />
 
-          <label className="vp-sub">NAMA (opsional)</label>
+          <label className="vp-sub">NAMA (OPSIONAL)</label>
           <input
             className="vp-input"
             value={name}
@@ -423,7 +673,7 @@ export default function CronPanel({
           >
             {busy === 'create' ? 'Membuat…' : 'Buat job'}
           </button>
-        </>
+        </div>
       )}
     </FullPanel>
   )

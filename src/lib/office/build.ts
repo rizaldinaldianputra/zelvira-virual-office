@@ -123,6 +123,27 @@ function canvasTex(size: number, draw: (c: CanvasRenderingContext2D, s: number) 
   return tex
 }
 
+/** Zelvira logo texture from /logo.png with fallback */
+function logoTexture(): THREE.Texture {
+  if (typeof window !== 'undefined' && typeof Image !== 'undefined') {
+    try {
+      const loader = new THREE.TextureLoader()
+      const tex = loader.load('/logo.png')
+      tex.colorSpace = THREE.SRGBColorSpace
+      return tex
+    } catch {}
+  }
+  return canvasTex(256, (c, s) => {
+    c.fillStyle = '#0f172a'
+    c.fillRect(0, 0, s, s)
+    c.fillStyle = '#38bdf8'
+    c.font = 'bold 36px sans-serif'
+    c.textAlign = 'center'
+    c.textBaseline = 'middle'
+    c.fillText('ZELVIRA', s / 2, s / 2)
+  })
+}
+
 function bumpFrom(source: THREE.Texture, strength = 0.5): THREE.Texture {
   const src = source.image as HTMLCanvasElement
   const cv = document.createElement('canvas')
@@ -2547,6 +2568,22 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     nameFace.position.set(DOOR.x, 3.5, HALF_D + 0.15)
     nameFace.name = 'office-name-face'
     group.add(nameFace)
+
+    // Emblem logo Zelvira di atas papan nama kantor
+    const logoPlate = box(2.4, 1.6, 0.1, 0x1e293b, { rough: 0.5, metal: 0.3 })
+    logoPlate.position.set(DOOR.x, 4.8, HALF_D + 0.08)
+    logoPlate.name = 'office-logo-plate'
+    group.add(logoPlate)
+    const logoMat = new THREE.MeshStandardMaterial({
+      map: logoTexture(),
+      transparent: true,
+      roughness: 0.3,
+      metalness: 0.1,
+    })
+    const logoFace = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 1.4), logoMat)
+    logoFace.position.set(DOOR.x, 4.8, HALF_D + 0.15)
+    logoFace.name = 'office-zelvira-logo-entrance'
+    group.add(logoFace)
     // canopy over the entrance, so the doorway reads from above
     const canopy = box(7.0, 0.22, 2.6, 0xe8eef2, { rough: 0.85 })
     canopy.position.set(DOOR.x, 3.1, HALF_D + 1.3)
@@ -3092,6 +3129,56 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     const lamp = new THREE.PointLight(0xfff0cf, hour >= 18 || hour < 6 ? 1.0 : 0.1, 18)
     lamp.position.set(lx, 5.05, lampZ + 1.05)
     streetGroup.add(lamp)
+  }
+
+  // Outdoor Zelvira monument pylon sign on the front boulevard outside the building
+  {
+    const pylon = new THREE.Group()
+    pylon.position.set(7.5, 0, HALF_D + 4.2)
+    pylon.name = 'zelvira-outdoor-pylon'
+
+    // Base podium
+    const base = box(2.4, 0.35, 1.0, 0x1e293b, { rough: 0.85 })
+    base.position.y = 0.175
+    pylon.add(base)
+
+    // Main totem pillar
+    const totem = box(2.0, 3.6, 0.45, 0x0f172a, { rough: 0.3, metal: 0.5 })
+    totem.position.y = 2.05
+    totem.castShadow = true
+    pylon.add(totem)
+
+    // Stainless edge trim
+    for (const sx of [-1.02, 1.02]) {
+      const trim = box(0.06, 3.6, 0.47, 0x94a3b8, { metal: 0.9, rough: 0.2 })
+      trim.position.set(sx, 2.05, 0)
+      pylon.add(trim)
+    }
+
+    const pylonLogoMat = new THREE.MeshStandardMaterial({
+      map: logoTexture(),
+      transparent: true,
+      roughness: 0.25,
+      metalness: 0.1,
+    })
+
+    // Front sign face (faces south toward street)
+    const frontLogo = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.6), pylonLogoMat)
+    frontLogo.position.set(0, 2.6, 0.235)
+    pylon.add(frontLogo)
+
+    // Back sign face (faces north toward building)
+    const backLogo = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.6), pylonLogoMat)
+    backLogo.rotation.y = Math.PI
+    backLogo.position.set(0, 2.6, -0.235)
+    pylon.add(backLogo)
+
+    // Ground uplight spotlighting the totem logo
+    const uplight = new THREE.PointLight(0x38bdf8, 0.7, 8)
+    uplight.position.set(0, 0.5, 0.8)
+    pylon.add(uplight)
+
+    streetGroup.add(pylon)
   }
 
   /* --------------------------------------------------------- living street */

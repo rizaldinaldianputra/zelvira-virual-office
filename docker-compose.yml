@@ -21,9 +21,8 @@ services:
       - AI_MODEL=${AI_MODEL:-}
     volumes:
       - office-data:/app/data
-      # Opsional: Jika Hermes terinstall di host, uncomment baris berikut:
-      # - ${HERMES_HOME:-~/.hermes}:/root/.hermes
-      # - ${HERMES_BIN:-/usr/local/bin/hermes}:/usr/local/bin/hermes:ro
+      # Mount direktori Hermes dari host (berisi config.yaml, profiles, model nvidia, dll.)
+      - ${HERMES_HOME_HOST:-~/.hermes}:/root/.hermes
     healthcheck:
       test: ["CMD-SHELL", "node -e 'require(\"http\").get(\"http://127.0.0.1:3000\", (r) => { process.exit(r.statusCode === 200 || r.statusCode === 304 ? 0 : 1); })'"]
       interval: 30s
