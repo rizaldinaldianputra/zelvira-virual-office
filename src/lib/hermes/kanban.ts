@@ -514,13 +514,13 @@ export async function resolveLlmCredentials(
           if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
             v = v.slice(1, -1)
           }
-          if (!apiKey && (k === 'AI_API_KEY' || k === 'NVIDIA_API_KEY' || k === 'OPENAI_API_KEY')) {
+          if (!apiKey && (k === 'AI_API_KEY' || k === 'NVIDIA_API_KEY' || k === 'OPENAI_API_KEY' || k.endsWith('_API_KEY') || k.endsWith('_TOKEN') || k.includes('API_KEY'))) {
             apiKey = v
           }
-          if (!baseUrl && k === 'AI_BASE_URL') {
+          if (!baseUrl && (k === 'AI_BASE_URL' || k === 'BASE_URL')) {
             baseUrl = v
           }
-          if (!modelName && k === 'AI_MODEL') {
+          if (!modelName && (k === 'AI_MODEL' || k === 'MODEL')) {
             modelName = v
           }
         }
@@ -528,9 +528,10 @@ export async function resolveLlmCredentials(
     }
   } catch {}
 
-  // 2. Baca dari config.yaml profile dan root
+  // 2. Baca dari config.yaml profile dan root (Hermes default profile)
   const dirs = [
     path.join(hermesHome(), 'profiles', assignee),
+    path.join(hermesHome(), 'profiles', 'default'),
     hermesHome(),
   ]
   const YAML = await import('yaml').then((m) => m.default || m).catch(() => null)
@@ -550,17 +551,39 @@ export async function resolveLlmCredentials(
           if (!modelName && cfg?.model) {
             modelName = typeof cfg.model === 'string' ? cfg.model : cfg.model.default || ''
           }
+          // Check top-level keys
+          if (!apiKey && (cfg?.api_key || cfg?.apiKey || cfg?.token)) {
+            apiKey = String(cfg.api_key || cfg.apiKey || cfg.token).trim()
+          }
+          if (!baseUrl && (cfg?.base_url || cfg?.baseUrl)) {
+            baseUrl = String(cfg.base_url || cfg.baseUrl).trim()
+          }
+
+          // Check custom_providers (array or map)
+          const provList: any[] = []
           if (Array.isArray(cfg?.custom_providers)) {
-            for (const prov of cfg.custom_providers) {
-              if (prov && typeof prov === 'object') {
-                const k = String(prov.api_key || '').trim()
-                if (k && !k.startsWith('***') && !apiKey) {
-                  apiKey = k
-                }
-                const url = String(prov.base_url || '').trim()
-                if (url && !baseUrl) {
-                  baseUrl = url
-                }
+            provList.push(...cfg.custom_providers)
+          } else if (cfg?.custom_providers && typeof cfg?.custom_providers === 'object') {
+            provList.push(...Object.values(cfg.custom_providers))
+          }
+          if (Array.isArray(cfg?.providers)) {
+            provList.push(...cfg.providers)
+          } else if (cfg?.providers && typeof cfg?.providers === 'object') {
+            provList.push(...Object.values(cfg.providers))
+          }
+
+          for (const prov of provList) {
+            if (prov && typeof prov === 'object') {
+              const k = String(prov.api_key || prov.apiKey || prov.key || prov.token || '').trim()
+              if (k && !k.startsWith('***') && !apiKey) {
+                apiKey = k
+              }
+              const url = String(prov.base_url || prov.baseUrl || '').trim()
+              if (url && !baseUrl) {
+                baseUrl = url
+              }
+              if (!modelName && prov.model) {
+                modelName = String(prov.model).trim()
               }
             }
           }
@@ -569,7 +592,13 @@ export async function resolveLlmCredentials(
     }
   }
 
+  // If still no model, query default model
+  if (!modelName) {
+    const def = await getHermesDefaultModel().catch(() => ({ model: null, provider: null }))
+    if (def.model) modelName = def.model
+  }
   if (!modelName) modelName = 'nvidia/nemotron-3-ultra-55'
+
   if (!baseUrl) {
     baseUrl = modelName.startsWith('nvidia/')
       ? 'https://integrate.api.nvidia.com/v1'
@@ -599,7 +628,22 @@ export async function executeAgentTask(taskId: string): Promise<{ success: boole
     let summary = ''
     let isSuccess = true
 
-    if (apiKey && baseUrl) {
+    // Coba eksekusi lewat native Hermes CLI jika ada
+    let cliAnswer: string | null = null
+    try {
+      const cliRes = await runHermes(
+        ['-p', assignee, 'chat', '-q', `Judul Tugas: ${task.title}\nDetail: ${task.body || task.title}\n\nSelesaikan tugas ini sekarang secara profesional dan lengkap.`, '-Q'],
+        { timeout: 90_000 },
+      )
+      const text = (cliRes.stdout || '').trim()
+      if (text && !text.includes('Perhatian: AI_API_KEY') && !text.startsWith('[LLM API Warning') && !text.startsWith('Error: Profile')) {
+        cliAnswer = text
+      }
+    } catch {}
+
+    if (cliAnswer) {
+      summary = cliAnswer
+    } else if (apiKey && baseUrl) {
       try {
         const resp = await fetch(`${baseUrl.replace(/\/+$/, '')}/chat/completions`, {
           method: 'POST',
@@ -636,7 +680,7 @@ export async function executeAgentTask(taskId: string): Promise<{ success: boole
         isSuccess = false
       }
     } else {
-      summary = `[Eksekusi Agent: ${assignee} · Model: ${modelName}]\nPerhatian: AI_API_KEY belum terisi di .env. Agent telah menerima tugas "${task.title}" (Uraian: "${task.body || '-'}"). Harap isi AI_API_KEY agar agent dapat menghasilkan output cerdas.`
+      summary = `[Eksekusi Agent: ${assignee} · Model: ${modelName}]\nPerhatian: API Key belum ditemukan di konfigurasi profil default Hermes (~/.hermes/config.yaml) maupun .env. Harap simpan API Key di menu Pengaturan (Settings) > tab "🔑 Masukkan API Key & Model Kustom" agar tersimpan ke profil default Hermes.`
     }
 
     const endSec = Math.floor(Date.now() / 1000)

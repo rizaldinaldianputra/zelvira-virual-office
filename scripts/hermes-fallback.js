@@ -237,15 +237,27 @@ function resolveProviderAndKey(cfgData) {
   const modelName = cfgData?.model?.default || cfgData?.model || rootCfg?.model?.default || rootCfg?.model || process.env.AI_MODEL || 'nvidia/nemotron-3-ultra-55'
   const providerRef = String(cfgData?.model?.provider || rootCfg?.model?.provider || 'custom:default')
 
-  const providers = [
-    ...(Array.isArray(cfgData?.custom_providers) ? cfgData.custom_providers : []),
-    ...(Array.isArray(rootCfg?.custom_providers) ? rootCfg.custom_providers : []),
-  ]
-  const provName = providerRef.replace(/^custom:/, '')
-  const prov = providers.find((p) => p.name === provName || p.id === provName) || providers[0]
+  let providers = []
+  if (Array.isArray(cfgData?.custom_providers)) providers.push(...cfgData.custom_providers)
+  else if (cfgData?.custom_providers && typeof cfgData.custom_providers === 'object') providers.push(...Object.values(cfgData.custom_providers))
 
-  const apiKey = prov?.api_key || process.env.AI_API_KEY || process.env.OPENAI_API_KEY || process.env.NVIDIA_API_KEY || ''
-  const baseUrl = prov?.base_url || process.env.AI_BASE_URL || (modelName.startsWith('nvidia/') ? 'https://integrate.api.nvidia.com/v1' : 'https://api.openai.com/v1')
+  if (Array.isArray(rootCfg?.custom_providers)) providers.push(...rootCfg.custom_providers)
+  else if (rootCfg?.custom_providers && typeof rootCfg.custom_providers === 'object') providers.push(...Object.values(rootCfg.custom_providers))
+
+  if (Array.isArray(rootCfg?.providers)) providers.push(...rootCfg.providers)
+  else if (rootCfg?.providers && typeof rootCfg.providers === 'object') providers.push(...Object.values(rootCfg.providers))
+
+  const provName = providerRef.replace(/^custom:/, '').toLowerCase()
+  let prov = providers.find((p) => String(p?.name || p?.id || '').toLowerCase() === provName) ||
+             providers.find((p) => p?.api_key || p?.apiKey || p?.token) ||
+             providers[0]
+
+  let apiKey = prov?.api_key || prov?.apiKey || prov?.key || prov?.token ||
+               cfgData?.api_key || cfgData?.apiKey ||
+               rootCfg?.api_key || rootCfg?.apiKey || rootCfg?.token ||
+               process.env.AI_API_KEY || process.env.NVIDIA_API_KEY || process.env.OPENAI_API_KEY || ''
+  let baseUrl = prov?.base_url || prov?.baseUrl || rootCfg?.base_url || rootCfg?.baseUrl || process.env.AI_BASE_URL ||
+                (modelName.startsWith('nvidia/') ? 'https://integrate.api.nvidia.com/v1' : 'https://api.openai.com/v1')
 
   return { modelName, apiKey, baseUrl }
 }
