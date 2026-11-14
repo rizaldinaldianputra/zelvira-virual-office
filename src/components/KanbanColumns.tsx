@@ -19,12 +19,12 @@ import {
  */
 
 export const KANBAN_COLUMNS = [
-  { label: 'TODO', statuses: ['todo', 'triage', 'ready', 'scheduled'] },
-  { label: 'DIKERJAKAN', statuses: ['running'] },
-  { label: 'REVIEW', statuses: ['review'] },
-  { label: 'SELESAI', statuses: ['done'] },
-  { label: 'TERHAMBAT', statuses: ['blocked'] },
-  { label: 'ARSIP', statuses: ['archived'] },
+  { label: 'TODO', statuses: ['todo', 'triage', 'ready', 'scheduled'], targetStatus: 'todo' },
+  { label: 'DIKERJAKAN', statuses: ['running'], targetStatus: 'running' },
+  { label: 'REVIEW', statuses: ['review'], targetStatus: 'review' },
+  { label: 'SELESAI', statuses: ['done'], targetStatus: 'done' },
+  { label: 'TERHAMBAT', statuses: ['blocked'], targetStatus: 'blocked' },
+  { label: 'ARSIP', statuses: ['archived'], targetStatus: 'archived' },
 ]
 const KNOWN = KANBAN_COLUMNS.flatMap((column) => column.statuses)
 
@@ -45,7 +45,11 @@ export default function KanbanColumns({
 }) {
   const tasks = useOffice((s) => s.tasks)
   const openTask = useOffice((s) => s.openTask)
+  const load = useOffice((s) => s.load)
   const [q, setQ] = useState('')
+  const [draggedId, setDraggedId] = useState<string | null>(null)
+  const [dragOverCol, setDragOverCol] = useState<string | null>(null)
+
   // Penanda dibaca dari SEMUA task, bukan hasil cari: mengetik di kotak cari tidak boleh
   // memicu batch baca bukti baru.
   // Kolom SELESAI = klaim worker; penanda bukti (ringkas) dibaca terpisah.
@@ -59,15 +63,59 @@ export default function KanbanColumns({
     : tasks
   const columns = [
     ...KANBAN_COLUMNS.map((column) => ({ ...column, items: shown.filter((task) => column.statuses.includes(task.status)) })),
-    { label: 'STATUS LAIN', statuses: [], items: shown.filter((task) => !KNOWN.includes(task.status)) },
+    { label: 'STATUS LAIN', statuses: [], targetStatus: '', items: shown.filter((task) => !KNOWN.includes(task.status)) },
   ]
+
+  const handleDrop = async (targetStatus: string, e: React.DragEvent) => {
+    e.preventDefault()
+    setDragOverCol(null)
+    const taskId = e.dataTransfer.getData('text/plain') || draggedId
+    if (!taskId) return
+    const task = tasks.find((t) => t.id === taskId)
+    if (!task || task.status === targetStatus) return
+
+    // Optimistic update
+    const prevTasks = useOffice.getState().tasks
+    useOffice.setState({
+      tasks: prevTasks.map((t) => (t.id === taskId ? { ...t, status: targetStatus as any } : t)),
+    })
+
+    try {
+      await fetch(`/api/hermes/tasks/${taskId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'move', status: targetStatus }),
+      })
+      void load()
+    } catch (err) {
+      console.error('Gagal memindahkan task:', err)
+      useOffice.setState({ tasks: prevTasks })
+    }
+  }
 
   return (
     <>
       {(search || freshness) && <KanbanToolbar {...{ search, freshness, q, setQ, marks, vf }} />}
       <div className="vp-k2d-grid grid min-w-[1050px] grid-cols-7 gap-3">
         {columns.map((column) => (
-          <section key={column.label} className="vp-col">
+          <section
+            key={column.label}
+            className={`vp-col transition-all duration-150 ${dragOverCol === column.label ? 'vp-col-dragover' : ''}`}
+            onDragOver={(e) => {
+              e.preventDefault()
+              e.dataTransfer.dropEffect = 'move'
+              if (dragOverCol !== column.label) setDragOverCol(column.label)
+            }}
+            onDragLeave={(e) => {
+              if (e.currentTarget.contains(e.relatedTarget as Node)) return
+              setDragOverCol(null)
+            }}
+            onDrop={(e) => {
+              if (column.targetStatus) {
+                void handleDrop(column.targetStatus, e)
+              }
+            }}
+          >
             <header className="vp-col-head">
               <span>{column.label}</span>
               <span className="vp-count">{column.items.length}</span>
@@ -79,13 +127,64 @@ export default function KanbanColumns({
                 return (
                 <article
                   key={task.id}
-                  className="vp-card"
+                  className={`vp-card ${draggedId === task.id ? 'opacity-40 ring-2 ring-emerald-500' : ''}`}
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData('text/plain', task.id)
+                    e.dataTransfer.effectAllowed = 'move'
+                    setDraggedId(task.id)
+                  }}
+                  onDragEnd={() => {
+                    setDraggedId(null)
+                    setDragOverCol(null)
+                  }}
                   onClick={() => {
                     openTask(task.id)
                     closeAfterOpen?.()
                   }}
                 >
-                  <div className="vp-card-title">{task.title}</div>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="vp-card-title flex-1">{task.title}</div>
+                    <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                      {task.status !== 'running' && task.status !== 'done' && (
+                        <button
+                          type="button"
+                          className="vp-card-act vp-card-act-run"
+                          title="Jalankan tugas ini dengan AI Agent sekarang"
+                          onClick={async (e) => {
+                            e.stopPropagation()
+                            try {
+                              await fetch(`/api/hermes/tasks/${task.id}`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ action: 'run' }),
+                              })
+                              void load()
+                            } catch {}
+                          }}
+                        >
+                          ▶
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="vp-card-act vp-card-act-del"
+                        title="Hapus tugas ini bila salah dibuat"
+                        onClick={async (e) => {
+                          e.stopPropagation()
+                          if (!window.confirm(`Hapus tugas "${task.title}"?`)) return
+                          try {
+                            await fetch(`/api/hermes/tasks/${task.id}`, {
+                              method: 'DELETE',
+                            })
+                            void load()
+                          } catch {}
+                        }}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
                   <div className="vp-card-meta">
                     <span className="vp-chip">{column.label === 'STATUS LAIN' ? task.status : task.assignee || '—'}</span>
                     {task.origin && task.origin.kind !== 'manual' && (
@@ -100,7 +199,7 @@ export default function KanbanColumns({
                 </article>
                 )
               })}
-              {!column.items.length && <div className="vp-empty">kosong</div>}
+              {!column.items.length && <div className="vp-empty">kosong (drag kartu ke sini)</div>}
             </div>
           </section>
         ))}

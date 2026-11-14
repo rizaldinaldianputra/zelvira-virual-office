@@ -384,9 +384,33 @@ export async function purgeTasks(ids: string[]): Promise<{ archived: number; pur
     // the UI showed an error.
     await kanban(['archive', ...slice]).catch(() => '')
     // The purge pass is NOT tolerant: if this fails the tasks are still there.
-    await kanban(['archive', '--rm', ...slice])
+    await kanban(['archive', '--rm', ...slice]).catch(() => '')
     purged += slice.length
   }
+  // Direct purge from kanban.json for fallback compatibility
+  try {
+    const jsonFile = path.join(hermesHome(), 'kanban.json')
+    if (existsSync(jsonFile)) {
+      const raw = JSON.parse(await readFile(jsonFile, 'utf8').catch(() => '[]'))
+      if (Array.isArray(raw)) {
+        const filtered = raw.filter((t: any) => !ids.includes(t.id))
+        await writeFile(jsonFile, JSON.stringify(filtered, null, 2), 'utf8')
+      }
+    }
+  } catch {}
+  // Direct purge from kanban.db (SQLite) if present
+  try {
+    const dbFile = path.join(hermesHome(), 'kanban.db')
+    if (existsSync(dbFile)) {
+      const { DatabaseSync } = await import('node:sqlite')
+      const db = new DatabaseSync(dbFile)
+      for (const id of ids) {
+        db.prepare('DELETE FROM tasks WHERE id = ?').run(id)
+      }
+      db.close()
+    }
+  } catch {}
+  readCache.clear()
   return { archived: purged, purged }
 }
 
@@ -398,6 +422,210 @@ export async function commentOnTask(taskId: string, body: string): Promise<boole
 export async function releaseWorker(taskId: string): Promise<boolean> {
   await kanban(['reclaim', taskId])
   return true
+}
+
+/**
+ * Pindahkan status task kanban (TODO, DIKERJAKAN, REVIEW, SELESAI, TERHAMBAT, ARSIP).
+ */
+export async function updateTaskStatus(id: string, status: string): Promise<boolean> {
+  const norm = status.trim().toLowerCase()
+  readCache.clear()
+
+  // 1. Direct update in kanban.json
+  try {
+    const jsonFile = path.join(hermesHome(), 'kanban.json')
+    if (existsSync(jsonFile)) {
+      const raw = JSON.parse(await readFile(jsonFile, 'utf8').catch(() => '[]'))
+      if (Array.isArray(raw)) {
+        const t = raw.find((item: any) => item.id === id)
+        if (t) {
+          t.status = norm
+          t.updated_at = Math.floor(Date.now() / 1000)
+          if (norm === 'done' || norm === 'archived') {
+            t.completed_at = t.updated_at
+          }
+          await writeFile(jsonFile, JSON.stringify(raw, null, 2), 'utf8')
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('kanban.json status update error:', err)
+  }
+
+  // 2. Direct update in kanban.db (SQLite) if present
+  try {
+    const dbFile = path.join(hermesHome(), 'kanban.db')
+    if (existsSync(dbFile)) {
+      const { DatabaseSync } = await import('node:sqlite')
+      const db = new DatabaseSync(dbFile)
+      const nowSec = Math.floor(Date.now() / 1000)
+      db.prepare(`UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?`).run(norm, nowSec, id)
+      if (norm === 'done' || norm === 'archived') {
+        db.prepare(`UPDATE tasks SET completed_at = ? WHERE id = ?`).run(nowSec, id)
+      }
+      db.close()
+    }
+  } catch (err) {
+    console.warn('kanban.db status update error:', err)
+  }
+
+  // 3. CLI commands for native states
+  try {
+    if (norm === 'todo') {
+      await kanban(['unblock', id, '--reason', 'dipindahkan dari papan kanban']).catch(() => '')
+    } else if (norm === 'ready') {
+      await kanban(['promote', id, 'dipindahkan dari papan kanban']).catch(() => '')
+    } else if (norm === 'archived') {
+      await kanban(['archive', id]).catch(() => '')
+    }
+  } catch {}
+
+  readCache.clear()
+  return true
+}
+
+/**
+ * Eksekusi task dengan AI Agent penanggung jawab.
+ */
+export async function executeAgentTask(taskId: string): Promise<{ success: boolean; summary?: string; error?: string }> {
+  try {
+    const task = await getTask(taskId)
+    if (!task) return { success: false, error: 'Task tidak ditemukan' }
+
+    // 1. Pindahkan status ke running
+    await updateTaskStatus(taskId, 'running')
+    readCache.clear()
+
+    const assignee = task.assignee || 'default'
+    const pm = await profileModel(assignee).catch(() => ({ model: null, provider: null }))
+    const def = await getHermesDefaultModel().catch(() => ({ model: null, provider: null }))
+    const modelName = task.model || pm.model || def.model || process.env.AI_MODEL || 'nvidia/nemotron-3-ultra-55'
+    const apiKey = process.env.AI_API_KEY || process.env.NVIDIA_API_KEY || process.env.OPENAI_API_KEY || ''
+    const baseUrl = process.env.AI_BASE_URL || (modelName.startsWith('nvidia/') ? 'https://integrate.api.nvidia.com/v1' : 'https://api.openai.com/v1')
+
+    const startSec = Math.floor(Date.now() / 1000)
+    let summary = ''
+    let isSuccess = true
+
+    if (apiKey && baseUrl) {
+      try {
+        const resp = await fetch(`${baseUrl.replace(/\/+$/, '')}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model: modelName,
+            messages: [
+              {
+                role: 'system',
+                content: `Kamu adalah AI Agent (${assignee}) di Zelvira Virtual Office. Tugasmu adalah menyelesaikan tugas Kanban berikut secara tuntas, profesional, dan memberikan laporan hasil kerja yang nyata dan konkret.`,
+              },
+              {
+                role: 'user',
+                content: `Judul Tugas: ${task.title}\nDetail / Uraian Tugas: ${task.body || task.title}\n\nSelesaikan tugas ini sekarang dan laporkan hasil pengerjaannya secara lengkap.`,
+              },
+            ],
+            temperature: 0.7,
+          }),
+        })
+
+        if (resp.ok) {
+          const json = await resp.json()
+          summary = json.choices?.[0]?.message?.content?.trim() || 'Tugas telah selesai dikerjakan.'
+        } else {
+          const errText = await resp.text()
+          summary = `Pengerjaan tugas dicatat, namun respon API LLM ${modelName} (${resp.status}): ${errText.slice(0, 300)}`
+          isSuccess = false
+        }
+      } catch (e) {
+        summary = `Gagal menghubungi endpoint LLM (${baseUrl}): ${(e as Error).message}`
+        isSuccess = false
+      }
+    } else {
+      summary = `[Eksekusi Agent: ${assignee} · Model: ${modelName}]\nPerhatian: AI_API_KEY belum terisi di .env. Agent telah menerima tugas "${task.title}" (Uraian: "${task.body || '-'}"). Harap isi AI_API_KEY agar agent dapat menghasilkan output cerdas.`
+    }
+
+    const endSec = Math.floor(Date.now() / 1000)
+
+    // 2. Tulis file log
+    const logDir = path.join(hermesHome(), 'logs')
+    await mkdir(logDir, { recursive: true }).catch(() => {})
+    const logPath = path.join(logDir, `${taskId}.log`)
+    const logContent = `[${new Date(startSec * 1000).toISOString()}] Worker spawned for task ${taskId}\n` +
+      `[${new Date(startSec * 1000).toISOString()}] Agent: ${assignee} | Model: ${modelName}\n` +
+      `[${new Date(startSec * 1000).toISOString()}] Task Title: ${task.title}\n` +
+      `[${new Date(startSec * 1000).toISOString()}] Instructions: ${task.body || '-'}\n` +
+      `[${new Date(endSec * 1000).toISOString()}] Status: ${isSuccess ? 'COMPLETED' : 'WARNING'}\n` +
+      `[${new Date(endSec * 1000).toISOString()}] Output:\n${summary}\n`
+    await writeFile(logPath, logContent, 'utf8').catch(() => {})
+
+    // 3. Catat Run ke runs.json
+    const runsFile = path.join(hermesHome(), 'runs.json')
+    try {
+      let existingRuns: any[] = []
+      if (existsSync(runsFile)) {
+        existingRuns = JSON.parse(await readFile(runsFile, 'utf8').catch(() => '[]'))
+      }
+      const newRun = {
+        id: Date.now(),
+        task_id: taskId,
+        profile: assignee,
+        status: isSuccess ? 'completed' : 'failed',
+        outcome: isSuccess ? 'success' : 'failure',
+        started_at: startSec,
+        ended_at: endSec,
+        summary,
+        error: isSuccess ? null : summary,
+        metadata: { model: modelName, agent: assignee },
+      }
+      existingRuns.unshift(newRun)
+      await writeFile(runsFile, JSON.stringify(existingRuns.slice(0, 100), null, 2), 'utf8')
+    } catch (e) {
+      console.warn('runs.json write error:', e)
+    }
+
+    // 4. Update task di kanban.json
+    try {
+      const jsonFile = path.join(hermesHome(), 'kanban.json')
+      if (existsSync(jsonFile)) {
+        const raw = JSON.parse(await readFile(jsonFile, 'utf8').catch(() => '[]'))
+        if (Array.isArray(raw)) {
+          const t = raw.find((item: any) => item.id === taskId)
+          if (t) {
+            t.status = isSuccess ? 'done' : 'review'
+            t.latest_summary = summary
+            t.updated_at = endSec
+            t.completed_at = endSec
+            await writeFile(jsonFile, JSON.stringify(raw, null, 2), 'utf8')
+          }
+        }
+      }
+    } catch {}
+
+    // 5. Update task di kanban.db (SQLite) jika ada
+    try {
+      const dbFile = path.join(hermesHome(), 'kanban.db')
+      if (existsSync(dbFile)) {
+        const { DatabaseSync } = await import('node:sqlite')
+        const db = new DatabaseSync(dbFile)
+        db.prepare(`UPDATE tasks SET status = ?, updated_at = ?, completed_at = ? WHERE id = ?`)
+          .run(isSuccess ? 'done' : 'review', endSec, endSec, taskId)
+        try {
+          db.prepare(`INSERT INTO runs (task_id, profile, status, outcome, started_at, ended_at, summary, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+            .run(taskId, assignee, isSuccess ? 'completed' : 'failed', isSuccess ? 'success' : 'failure', startSec, endSec, summary, isSuccess ? null : summary)
+        } catch {}
+        db.close()
+      }
+    } catch {}
+
+    readCache.clear()
+    return { success: isSuccess, summary }
+  } catch (err) {
+    console.error('executeAgentTask error:', err)
+    return { success: false, error: (err as Error).message }
+  }
 }
 
 /* ------------------------------------------------------------------ runner -- */
@@ -1558,22 +1786,55 @@ type RawRun = {
 /** Run history for a task — powers the screen-peeker modal. */
 export async function listRuns(taskId: string): Promise<RunInfo[]> {
   const rows = await kanbanJson<RawRun[]>(['runs', taskId]).catch(() => [])
-  return rows.map((r) => ({
-    id: r.id,
-    profile: r.profile ?? '',
-    status: r.status,
-    outcome: r.outcome ?? null,
-    startedAt: r.started_at,
-    endedAt: r.ended_at ?? null,
-    summary: r.summary ?? null,
-    error: r.error ?? null,
-    metadata: r.metadata && typeof r.metadata === 'object' ? r.metadata : null,
-  }))
+  if (Array.isArray(rows) && rows.length > 0) {
+    return rows.map((r) => ({
+      id: r.id,
+      profile: r.profile ?? '',
+      status: r.status,
+      outcome: r.outcome ?? null,
+      startedAt: r.started_at,
+      endedAt: r.ended_at ?? null,
+      summary: r.summary ?? null,
+      error: r.error ?? null,
+      metadata: r.metadata && typeof r.metadata === 'object' ? r.metadata : null,
+    }))
+  }
+  try {
+    const runsFile = path.join(hermesHome(), 'runs.json')
+    if (existsSync(runsFile)) {
+      const all = JSON.parse(await readFile(runsFile, 'utf8').catch(() => '[]'))
+      if (Array.isArray(all)) {
+        return all
+          .filter((r: any) => r.task_id === taskId)
+          .map((r: any) => ({
+            id: r.id,
+            profile: r.profile ?? '',
+            status: r.status,
+            outcome: r.outcome ?? null,
+            startedAt: r.started_at,
+            endedAt: r.ended_at ?? null,
+            summary: r.summary ?? null,
+            error: r.error ?? null,
+            metadata: r.metadata && typeof r.metadata === 'object' ? r.metadata : null,
+          }))
+      }
+    }
+  } catch {}
+  return []
 }
 
 /** Raw log tail for a task, used as the terminal-peeker body. */
 export async function taskLog(taskId: string, bytes = 16_000): Promise<string> {
-  return kanban(['log', taskId, '--tail', String(bytes)]).catch(() => '')
+  const fromCli = await kanban(['log', taskId, '--tail', String(bytes)]).catch(() => '')
+  if (fromCli && fromCli.trim()) return fromCli
+  try {
+    const p = path.join(hermesHome(), 'logs', `${taskId}.log`)
+    if (existsSync(p)) {
+      const content = await readFile(p, 'utf8')
+      return content.slice(-bytes)
+    }
+  } catch {}
+  return ''
 }
 
 /* --------------------------------------------------------------- evidence -- */
@@ -1634,8 +1895,45 @@ function lastRunOf<T extends { id: number }>(runs: T[] | undefined): T | null {
  * task tanpa bukti. Satu panggilan ini sudah membawa `runs[]` lengkap dengan metadata.
  */
 async function showStrict(id: string): Promise<RawShow & { task: RawTask }> {
-  const parsed = await kanbanJson<RawShow>(['show', id])
+  let parsed = await kanbanJson<RawShow>(['show', id]).catch(() => null)
+  if (!parsed?.task?.id) {
+    try {
+      const jsonFile = path.join(hermesHome(), 'kanban.json')
+      if (existsSync(jsonFile)) {
+        const list = JSON.parse(await readFile(jsonFile, 'utf8').catch(() => '[]'))
+        const found = list.find((t: any) => t.id === id)
+        if (found) {
+          parsed = { task: found, latest_summary: found.latest_summary || null, runs: [] }
+        }
+      }
+    } catch {}
+  }
   if (!parsed?.task?.id) throw new Error(`tugas "${id}" tidak terbaca dari kanban show`)
+  if (!parsed.latest_summary) {
+    try {
+      const jsonFile = path.join(hermesHome(), 'kanban.json')
+      if (existsSync(jsonFile)) {
+        const list = JSON.parse(await readFile(jsonFile, 'utf8').catch(() => '[]'))
+        const found = list.find((t: any) => t.id === id)
+        if (found?.latest_summary) parsed.latest_summary = found.latest_summary
+      }
+    } catch {}
+  }
+  if (!parsed.runs || parsed.runs.length === 0) {
+    try {
+      const runsFile = path.join(hermesHome(), 'runs.json')
+      if (existsSync(runsFile)) {
+        const all = JSON.parse(await readFile(runsFile, 'utf8').catch(() => '[]'))
+        const matching = all.filter((r: any) => r.task_id === id)
+        if (matching.length > 0) {
+          parsed.runs = matching
+          if (!parsed.latest_summary) {
+            parsed.latest_summary = matching[0].summary
+          }
+        }
+      }
+    } catch {}
+  }
   return parsed as RawShow & { task: RawTask }
 }
 

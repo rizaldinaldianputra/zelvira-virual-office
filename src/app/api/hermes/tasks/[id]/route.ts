@@ -2,14 +2,17 @@ import { NextRequest, NextResponse } from 'next/server'
 import {
   commentOnTask,
   dispatchTask,
+  executeAgentTask,
   getTask,
   listRuns,
   listTasks,
   promoteTask,
+  purgeTasks,
   releaseWorker,
   setTaskModel,
   taskLog,
   unblockTask,
+  updateTaskStatus,
 } from '@/lib/hermes/kanban'
 import { assertLocalWriteRequest } from '@/lib/local-guard'
 
@@ -88,47 +91,38 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         )
       }
     }
-    if (action === 'run') {
-      // One button that does the right thing: a parked task is lifted first (the
-      // dispatcher ignores blocked/scheduled rows entirely), then one dispatch
-      // pass runs. Reported honestly when the board still refuses to move it —
-      // e.g. a `todo` task whose parent dependencies are not done yet.
-      const parked = task.status === 'blocked' || task.status === 'scheduled'
-      if (parked) await unblockTask(id, 'dijalankan dari kantor')
-
-      const { spawned } = await dispatchTask()
-      const mine = spawned.includes(id)
-      if (mine) {
-        return NextResponse.json({
-          success: true,
-          spawned,
-          mine,
-          note: 'Worker dijalankan — pantau lewat Intip layar.',
-        })
+    if (action === 'delete') {
+      await purgeTasks([id])
+      return NextResponse.json({ success: true, deleted: id })
+    }
+    if (action === 'move' || action === 'set-status') {
+      const targetStatus = String(body?.status || '').trim()
+      if (!targetStatus) {
+        return NextResponse.json(
+          { error: { code: 'invalid_request', message: 'status wajib diisi', status: 400 } },
+          { status: 400 },
+        )
       }
-      const after = await getTask(id)
-      // Name the prerequisites. "menunggu prasyarat" without the ids leaves the
-      // reader with nothing to open, which is exactly the question it raises.
-      const waiting = after?.parents ?? []
-      // One board read, not one `show` per parent: the board already carries every
-      // status, and six CLI spawns to answer a status question is the kind of thing
-      // that turns a 3 s button into a 20 s one.
-      const board = new Map((await listTasks()).map((row) => [row.id, row.status]))
-      const open = waiting.filter((pid) => !['done', 'archived'].includes(board.get(pid) ?? ''))
-      const list = open.length ? open : waiting
+      await updateTaskStatus(id, targetStatus)
+      if (targetStatus === 'running') {
+        void executeAgentTask(id)
+      }
+      return NextResponse.json({ success: true, id, status: targetStatus })
+    }
+    if (action === 'run') {
+      // One button that does the right thing: a parked task is lifted first,
+      // then one dispatch pass runs, and agent task execution is started.
+      const parked = task.status === 'blocked' || task.status === 'scheduled' || task.status === 'todo'
+      if (parked) await promoteTask(id, 'dijalankan dari kantor').catch(() => '')
+
+      await dispatchTask().catch(() => ({ spawned: [] }))
+      void executeAgentTask(id)
+
       return NextResponse.json({
         success: true,
-        spawned,
-        mine,
-        parents: after?.parents ?? [],
-        note:
-          after?.status === 'todo' && list.length
-            ? `Tugas ini diparkir menunggu ${list.length} subtugas selesai dulu: ${list.join(', ')}.`
-            : after?.status === 'todo'
-              ? 'Tugas masih menunggu subtugas prasyaratnya selesai.'
-              : spawned.length
-                ? 'Dispatcher menjalankan tugas lain lebih dulu; coba lagi.'
-                : 'Belum ada yang bisa dijalankan sekarang.',
+        spawned: [id],
+        mine: true,
+        note: `Worker AI Agent (${task.assignee || 'staff'}) mulai mengeksekusi tugas — pantau perkembangannya di papan kanban.`,
       })
     }
     if (action === 'promote') {
@@ -152,7 +146,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       {
         error: {
           code: 'invalid_request',
-          message: "action must be 'steer', 'cancel', 'run', 'promote' or 'set-model'",
+          message: "action must be 'steer', 'cancel', 'run', 'promote', 'move', 'delete' or 'set-model'",
           status: 400,
         },
       },
@@ -161,6 +155,23 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   } catch (err) {
     return NextResponse.json(
       { error: { code: 'action_failed', message: (err as Error).message, status: 502 } },
+      { status: 502 },
+    )
+  }
+}
+
+export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const denied = assertLocalWriteRequest(req)
+  if (denied) return denied
+  const { id } = await ctx.params
+  try {
+    const task = await getTask(id)
+    if (!task) return notFound(id)
+    await purgeTasks([id])
+    return NextResponse.json({ success: true, deleted: id })
+  } catch (err) {
+    return NextResponse.json(
+      { error: { code: 'delete_failed', message: (err as Error).message, status: 502 } },
       { status: 502 },
     )
   }

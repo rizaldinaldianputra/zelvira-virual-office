@@ -200,8 +200,8 @@ export default function TaskPanel() {
 
   if (!taskId) return null
 
-  /** run | promote | set-model */
-  async function act(action: 'run' | 'promote' | 'set-model', extra: Record<string, unknown> = {}) {
+  /** run | promote | set-model | delete | move */
+  async function act(action: 'run' | 'promote' | 'set-model' | 'delete' | 'move', extra: Record<string, unknown> = {}) {
     setBusy(true)
     setNote(null)
     try {
@@ -326,15 +326,19 @@ export default function TaskPanel() {
                 workers lives in the gateway. Without this button a task just sits
                 there whenever the gateway is down. It lifts a parked task first,
                 so one click covers blocked/scheduled too. */}
-            <div className="vp-sub">JALANKAN</div>
+            <div className="vp-sub">JALANKAN DENGAN AGENT</div>
             <div className="flex gap-2">
               <button
                 className="vp-btn"
-                disabled={busy || task.status === 'running' || task.status === 'review'}
-                onClick={() => act('run')}
-                title="Buka blokir bila perlu, lalu suruh dispatcher Hermes mengeksekusi tugas ini"
+                style={{ backgroundColor: '#059669', color: '#fff', borderColor: '#047857', fontWeight: 600 }}
+                disabled={busy || task.status === 'running'}
+                onClick={async () => {
+                  await act('run')
+                  void load()
+                }}
+                title="Buka blokir bila perlu, lalu suruh AI Agent mengeksekusi tugas ini"
               >
-                {busy ? '…' : 'Jalankan'}
+                {busy ? '…' : '▶ Jalankan Sekarang'}
               </button>
             </div>
             {blocked && (
@@ -366,6 +370,24 @@ export default function TaskPanel() {
               </button>
             </div>
             {note && <div className="vp-note">{note}</div>}
+
+            <div className="vp-sub">HAPUS TUGAS</div>
+            <div className="flex gap-2">
+              <button
+                className="vp-btn"
+                style={{ backgroundColor: '#dc2626', color: '#fff', borderColor: '#b91c1c' }}
+                disabled={busy}
+                onClick={async () => {
+                  if (!window.confirm(`Yakin ingin menghapus tugas "${task.title}"?`)) return
+                  await act('delete')
+                  close()
+                  void load()
+                }}
+                title="Hapus tugas ini dari papan bila salah dibuat"
+              >
+                🗑 Hapus Tugas Ini
+              </button>
+            </div>
 
             {task.body && <Collapsible label="Uraian" text={task.body} />}
 

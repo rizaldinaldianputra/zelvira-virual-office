@@ -547,13 +547,52 @@ if (sub === 'kanban') {
     process.exit(0)
   }
 
+  if (action === 'move') {
+    const id = cleanCmd[2]
+    const targetStatus = cleanCmd[3] || 'todo'
+    const task = tasks.find((t) => t.id === id)
+    if (task) {
+      task.status = targetStatus
+      task.updated_at = Math.floor(Date.now() / 1000)
+      if (targetStatus === 'done' || targetStatus === 'archived') {
+        task.completed_at = task.updated_at
+      }
+      writeJsonFile(kanbanFile, tasks)
+    }
+    console.log(JSON.stringify({ success: true, id, status: targetStatus }))
+    process.exit(0)
+  }
+
+  if (action === 'runs') {
+    const id = cleanCmd[2]
+    const runsFile = path.join(hermesDir, 'runs.json')
+    const allRuns = readJsonFile(runsFile, [])
+    const matching = Array.isArray(allRuns) ? allRuns.filter((r) => r.task_id === id) : []
+    console.log(JSON.stringify(matching))
+    process.exit(0)
+  }
+
   if (action === 'dispatch') {
-    console.log(JSON.stringify({ spawned: [] }))
+    const candidate = tasks.find((t) => t.status === 'ready' || t.status === 'todo')
+    if (candidate) {
+      candidate.status = 'running'
+      candidate.updated_at = Math.floor(Date.now() / 1000)
+      writeJsonFile(kanbanFile, tasks)
+      console.log(JSON.stringify({ spawned: [candidate.id] }))
+    } else {
+      console.log(JSON.stringify({ spawned: [] }))
+    }
     process.exit(0)
   }
 
   if (action === 'log') {
-    console.log('')
+    const id = cleanCmd[2]
+    const logFile = path.join(hermesDir, 'logs', `${id}.log`)
+    if (fs.existsSync(logFile)) {
+      console.log(fs.readFileSync(logFile, 'utf8'))
+    } else {
+      console.log('')
+    }
     process.exit(0)
   }
 }

@@ -433,6 +433,50 @@ button.vp-run:hover { border-left-color: #6f8fa3; background: #131c23; }
   color: #9fd8bb;
 }
 .vp-empty { color: #43535e; font-size: 12px; text-align: center; padding: 12px 0; }
+.vp-col-dragover {
+  border-color: #10b981 !important;
+  background: #142820 !important;
+  box-shadow: 0 0 14px rgba(16, 185, 129, 0.3);
+}
+.vp-card[draggable="true"] {
+  cursor: grab;
+}
+.vp-card[draggable="true"]:active {
+  cursor: grabbing;
+}
+.vp-card-act {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1;
+  padding: 0;
+}
+.vp-card-act-run {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border-color: rgba(16, 185, 129, 0.3);
+}
+.vp-card-act-run:hover {
+  background: #059669;
+  color: #fff;
+}
+.vp-card-act-del {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+.vp-card-act-del:hover {
+  background: #dc2626;
+  color: #fff;
+}
 
 /* --------------------------------------------------------------- overlay -- */
 .vp-bubble {
