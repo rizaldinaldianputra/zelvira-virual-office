@@ -15,6 +15,7 @@ import ChatPanel from './ChatPanel'
 import NewTaskDialog from './NewTaskDialog'
 import KanbanModal from './KanbanModal'
 import OfficeNameDialog from './OfficeNameDialog'
+import WorkflowEnginePanel from './workflow/WorkflowEnginePanel'
 import { startPolling, useOffice } from '@/lib/store'
 import type { OfficeScene } from '@/lib/office/scene'
 import type { AgentDivision } from '@/types/hermes'
@@ -53,6 +54,7 @@ export default function OfficeApp() {
   const [chatOpen, setChatOpen] = useState(false)
   const [boardOpen, setBoardOpen] = useState(false)
   const [nameOpen, setNameOpen] = useState(false)
+  const [workflowOpen, setWorkflowOpen] = useState(false)
   const loadOffice = useOffice((s) => s.loadOffice)
 
   useEffect(() => startPolling(), [])
@@ -95,6 +97,7 @@ export default function OfficeApp() {
       if (e.key === 'm' || e.key === 'M') setMeetOpen((v) => !v)
       if (e.key === 'n' || e.key === 'N') setNewTaskOpen(true)
       if (e.key === 'c' || e.key === 'C') setChatOpen((v) => !v)
+      if (e.key === 'w' || e.key === 'W') setWorkflowOpen((v) => !v)
       if (e.key === '3') setView('3d')
       if (e.key === '2') setView('2d')
       if (e.key === '1') setView('sprite')
@@ -158,6 +161,18 @@ export default function OfficeApp() {
           <button className="vp-btn vp-btn-ghost" onClick={() => setChatOpen(true)}>
             Chat
           </button>
+          <button
+            className="vp-btn vp-btn-ghost"
+            style={{
+              background: 'linear-gradient(135deg, rgba(56, 189, 248, 0.15), rgba(99, 102, 241, 0.15))',
+              border: '1px solid rgba(56, 189, 248, 0.4)',
+              color: '#38bdf8',
+              fontWeight: 600,
+            }}
+            onClick={() => setWorkflowOpen(true)}
+          >
+            ⚡ AI Workflow Engine
+          </button>
         </nav>
         {/* Saklar tampilan sengaja di luar <nav>: di HP baris tombol bisa digeser ke
             samping, dan pilihan 3D/Kanban/Sprite tidak boleh ikut hilang dari layar. */}
@@ -204,6 +219,7 @@ export default function OfficeApp() {
         onAgentCreated={() => void loadTasks()}
       />
       <NewTaskDialog />
+      <WorkflowEnginePanel open={workflowOpen} onClose={() => setWorkflowOpen(false)} />
       {boardOpen && <KanbanModal onClose={() => setBoardOpen(false)} />}
       {nameOpen && <OfficeNameDialog onClose={() => setNameOpen(false)} />}
 

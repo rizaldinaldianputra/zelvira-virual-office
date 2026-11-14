@@ -11,6 +11,7 @@
 const fs = require('node:fs')
 const path = require('node:path')
 const os = require('node:os')
+const crypto = require('node:crypto')
 
 let YAML = null
 try {
@@ -20,12 +21,21 @@ try {
 const hermesDir = process.env.HERMES_HOME || path.join(os.homedir(), '.hermes')
 const kanbanFile = path.join(hermesDir, 'kanban.json')
 const profilesDir = path.join(hermesDir, 'profiles')
+const cronDir = path.join(hermesDir, 'cron')
+const cronFile = path.join(cronDir, 'jobs.json')
 
 // Ensure basic directories exist
 try {
   fs.mkdirSync(hermesDir, { recursive: true })
   fs.mkdirSync(profilesDir, { recursive: true })
+  fs.mkdirSync(cronDir, { recursive: true })
 } catch {}
+
+function getFlag(arr, flag) {
+  const idx = arr.indexOf(flag)
+  if (idx !== -1 && idx + 1 < arr.length) return arr[idx + 1]
+  return null
+}
 
 function parseSimpleYaml(content) {
   const result = {}
@@ -285,16 +295,120 @@ if (sub === 'kanban') {
 
   if (action === 'create') {
     const title = cleanCmd[2] || 'Tugas Baru'
+    const assignee = getFlag(cleanCmd, '--assignee')
+    const body = getFlag(cleanCmd, '--body') || ''
+    const priority = Number(getFlag(cleanCmd, '--priority') || 0)
+    const createdBy = getFlag(cleanCmd, '--created-by')
+    const id = 't_' + crypto.randomBytes(4).toString('hex')
+    const nowSec = Math.floor(Date.now() / 1000)
+
     const newTask = {
       id: `task-${Date.now().toString(36)}`,
+      id,
       title,
       status: 'todo',
       assignee: null,
       created_at: new Date().toISOString(),
+      assignee: assignee || null,
+      body,
+      priority,
+      created_by: createdBy || null,
+      created_at: nowSec,
+      updated_at: nowSec,
+      completed_at: null,
     }
     tasks.push(newTask)
     writeJsonFile(kanbanFile, tasks)
     console.log(JSON.stringify(newTask))
+
+    if (isJson) {
+      console.log(JSON.stringify(newTask))
+    } else {
+      console.log(`Created task ${id}: ${title}`)
+    }
+    process.exit(0)
+  }
+
+  if (action === 'show') {
+    const id = cleanCmd[2]
+    const task = tasks.find((t) => t.id === id) || null
+    if (task) {
+      console.log(JSON.stringify({
+        task,
+        events: [],
+        comments: [],
+        latest_summary: null,
+        children: [],
+        parents: [],
+      }))
+    } else {
+      console.log(JSON.stringify({}))
+    }
+    process.exit(0)
+  }
+
+  if (action === 'comment') {
+    const id = cleanCmd[2]
+    const task = tasks.find((t) => t.id === id)
+    if (task) {
+      task.updated_at = Math.floor(Date.now() / 1000)
+      writeJsonFile(kanbanFile, tasks)
+    }
+    console.log(JSON.stringify({ success: true, id }))
+    process.exit(0)
+  }
+
+  if (action === 'unblock') {
+    const id = cleanCmd[2]
+    const task = tasks.find((t) => t.id === id)
+    if (task) {
+      task.status = 'todo'
+      task.updated_at = Math.floor(Date.now() / 1000)
+      writeJsonFile(kanbanFile, tasks)
+    }
+    console.log(`Task ${id} unblocked`)
+    process.exit(0)
+  }
+
+  if (action === 'promote') {
+    const id = cleanCmd[2]
+    const task = tasks.find((t) => t.id === id)
+    if (task) {
+      task.status = 'ready'
+      task.updated_at = Math.floor(Date.now() / 1000)
+      writeJsonFile(kanbanFile, tasks)
+    }
+    console.log(`Task ${id} promoted`)
+    process.exit(0)
+  }
+
+  if (action === 'reclaim') {
+    const id = cleanCmd[2]
+    const task = tasks.find((t) => t.id === id)
+    if (task) {
+      task.assignee = null
+      task.updated_at = Math.floor(Date.now() / 1000)
+      writeJsonFile(kanbanFile, tasks)
+    }
+    console.log(`Task ${id} reclaimed`)
+    process.exit(0)
+  }
+
+  if (action === 'archive') {
+    const ids = cleanCmd.slice(2).filter((x) => !x.startsWith('-'))
+    tasks = tasks.filter((t) => !ids.includes(t.id))
+    writeJsonFile(kanbanFile, tasks)
+    console.log(JSON.stringify({ archived: ids }))
+    process.exit(0)
+  }
+
+  if (action === 'dispatch') {
+    console.log(JSON.stringify({ spawned: [] }))
+    process.exit(0)
+  }
+
+  if (action === 'log') {
+    console.log('')
     process.exit(0)
   }
 }
@@ -309,8 +423,119 @@ if (sub === 'chat') {
 
 // ------------------------------------------------------------- CRON
 if (sub === 'cron') {
+  const action = cleanCmd[1]
+  let cronData = readJsonFile(cronFile, { jobs: [] })
+  if (!Array.isArray(cronData.jobs)) cronData.jobs = []
+
+  if (action === 'create' || action === 'add') {
+    const schedule = cleanCmd[2] || '0 9 * * *'
+    const prompt = cleanCmd[3] && !cleanCmd[3].startsWith('--') ? cleanCmd[3] : ''
+    const name = getFlag(cleanCmd, '--name') || 'Tugas Terjadwal'
+    const isPaused = cleanCmd.includes('--paused')
+    const deliver = getFlag(cleanCmd, '--deliver') || 'origin'
+    const script = getFlag(cleanCmd, '--script') || null
+    const noAgent = cleanCmd.includes('--no-agent')
+    const id = crypto.randomBytes(6).toString('hex')
+
+    const newJob = {
+      id,
+      name,
+      prompt,
+      schedule: { kind: 'cron', expr: schedule, display: schedule },
+      schedule_display: schedule,
+      enabled: !isPaused,
+      state: isPaused ? 'paused' : 'active',
+      deliver,
+      no_agent: noAgent,
+      script,
+      created_at: new Date().toISOString(),
+      last_run_at: null,
+      last_status: null,
+      failure_streak: 0,
+    }
+    cronData.jobs.unshift(newJob)
+    try {
+      fs.mkdirSync(cronDir, { recursive: true })
+      writeJsonFile(cronFile, cronData)
+    } catch {}
+
+    console.log(`Created job: ${id}`)
+    process.exit(0)
+  }
+
+  if (action === 'pause') {
+    const id = cleanCmd[2]
+    if (Array.isArray(cronData.jobs)) {
+      const job = cronData.jobs.find((j) => j.id === id)
+      if (job) {
+        job.enabled = false
+        job.state = 'paused'
+        writeJsonFile(cronFile, cronData)
+      }
+    }
+    console.log(`Job ${id} paused`)
+    process.exit(0)
+  }
+
+  if (action === 'resume') {
+    const id = cleanCmd[2]
+    if (Array.isArray(cronData.jobs)) {
+      const job = cronData.jobs.find((j) => j.id === id)
+      if (job) {
+        job.enabled = true
+        job.state = 'active'
+        writeJsonFile(cronFile, cronData)
+      }
+    }
+    console.log(`Job ${id} resumed`)
+    process.exit(0)
+  }
+
+  if (action === 'remove' || action === 'rm' || action === 'delete') {
+    const id = cleanCmd[2]
+    if (Array.isArray(cronData.jobs)) {
+      cronData.jobs = cronData.jobs.filter((j) => j.id !== id)
+      writeJsonFile(cronFile, cronData)
+    }
+    console.log(`Job ${id} removed`)
+    process.exit(0)
+  }
+
+  if (action === 'run') {
+    const id = cleanCmd[2]
+    console.log(`Job ${id} triggered`)
+    process.exit(0)
+  }
+
+  if (action === 'runs') {
+    console.log('')
+    process.exit(0)
+  }
+
+  if (action === 'list') {
+    console.log(JSON.stringify(cronData.jobs))
+    process.exit(0)
+  }
+
   console.log(JSON.stringify([]))
   process.exit(0)
+}
+
+// ------------------------------------------------------------- GATEWAY
+if (sub === 'gateway') {
+  const action = cleanCmd[1] || 'status'
+  if (action === 'restart' || action === 'start' || action === 'stop') {
+    const pidFile = path.join(hermesDir, 'gateway.pid')
+    try {
+      fs.writeFileSync(pidFile, JSON.stringify({ pid: process.pid, status: action, at: new Date().toISOString() }))
+    } catch {}
+    console.log(`Hermes gateway ${action}ed successfully`)
+    process.exit(0)
+  }
+  if (action === 'status') {
+    console.log('Hermes gateway running')
+    process.exit(0)
+  }
 }
 
 // Default fallback

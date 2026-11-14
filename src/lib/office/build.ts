@@ -144,6 +144,37 @@ function logoTexture(): THREE.Texture {
   })
 }
 
+/**
+ * Elegant illuminated acrylic logo plaque mounted flat on an interior office wall.
+ * Contains subtle dark acrylic backplate, metallic mounting rim, and the high-res Zelvira emblem.
+ */
+function createWallLogo(w = 1.6, h = 1.0): THREE.Group {
+  const g = new THREE.Group()
+  // Acrylic / tinted glass backplate
+  const backplate = box(w + 0.16, h + 0.16, 0.03, 0x0f172a, { rough: 0.35, metal: 0.4 })
+  backplate.castShadow = true
+  g.add(backplate)
+
+  // Metallic rim / trim
+  const rim = box(w + 0.2, h + 0.2, 0.015, 0x334155, { rough: 0.2, metal: 0.85 })
+  rim.position.z = -0.01
+  g.add(rim)
+
+  // Zelvira logo face
+  const logoMat = new THREE.MeshStandardMaterial({
+    map: logoTexture(),
+    transparent: true,
+    roughness: 0.25,
+    metalness: 0.1,
+  })
+  const face = new THREE.Mesh(new THREE.PlaneGeometry(w, h), logoMat)
+  face.position.z = 0.02
+  face.name = 'office-wall-logo-face'
+  g.add(face)
+
+  return g
+}
+
 function bumpFrom(source: THREE.Texture, strength = 0.5): THREE.Texture {
   const src = source.image as HTMLCanvasElement
   const cv = document.createElement('canvas')
@@ -2246,6 +2277,12 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     group.add(tray)
     // expose the board mesh for scene.ts (it pins the card grid / raycast to it)
     boardSurface = board
+
+    // Logo Zelvira di dinding ruang rapat Rinjani, di samping papan Kanban
+    const rinjaniLogo = createWallLogo(1.6, 1.0)
+    rinjaniLogo.position.set(-8.5, KANBAN_BOARD.y, KANBAN_BOARD.z)
+    rinjaniLogo.name = 'office-wall-logo-rinjani'
+    group.add(rinjaniLogo)
   }
 
   /* ------------------------------------------------------------ CEO suite -- */
@@ -2521,6 +2558,26 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     backr.position.set(0, 0.78, -0.28)
     chair.add(backr)
     group.add(chair)
+
+    // Logo Zelvira di dinding lobby tepat di belakang meja resepsionis
+    const lobbyWallLogo = createWallLogo(2.2, 1.4)
+    lobbyWallLogo.position.set(RECEPTION.x, 2.1, 16.12)
+    lobbyWallLogo.name = 'office-wall-logo-lobby'
+    group.add(lobbyWallLogo)
+
+    // Logo Zelvira di dinding koridor divisi barat lantai 0 (menghadap courtyard)
+    const divLogo = createWallLogo(1.8, 1.1)
+    divLogo.rotation.y = Math.PI / 2
+    divLogo.position.set(-13.88, 1.9, 0)
+    divLogo.name = 'office-wall-logo-division'
+    group.add(divLogo)
+
+    // Logo Zelvira di dinding koridor timur lantai 0 (menghadap courtyard)
+    const eastLogo = createWallLogo(1.8, 1.1)
+    eastLogo.rotation.y = -Math.PI / 2
+    eastLogo.position.set(13.88, 1.9, -4.0)
+    eastLogo.name = 'office-wall-logo-east'
+    group.add(eastLogo)
     // waiting bench + planters
     for (const bx of [-11.5, 11.5]) {
       const bench = new THREE.Mesh(rbox(2.6, 0.4, 0.7, 0.06), stdMat(0x8f6f4a, { rough: 0.8 }))

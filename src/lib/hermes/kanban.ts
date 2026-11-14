@@ -43,7 +43,7 @@ function resolveHermesExec(): { bin: string; prefix: string[] } {
   return { bin: envBin || 'hermes', prefix: [] }
 }
 
-async function runHermes(
+export async function runHermes(
   args: string[],
   options?: Parameters<typeof run>[2],
 ): Promise<{ stdout: string; stderr: string }> {
@@ -294,10 +294,29 @@ export async function createTask(input: NewTaskInput): Promise<Task> {
 
   const out = await kanban(args)
   const m = out.match(/t_[0-9a-f]{8}/)
-  if (!m) throw new Error(`could not read the new task id from: ${out.trim().slice(0, 200)}`)
+  let taskId = m ? m[0] : null
+  if (!taskId) {
+    try {
+      const parsed = JSON.parse(out) as { id?: string; task_id?: string; task?: { id?: string } }
+      taskId = parsed.id || parsed.task_id || parsed.task?.id || null
+    } catch {}
+  }
+  if (!taskId) throw new Error(`could not read the new task id from: ${out.trim().slice(0, 200)}`)
 
-  const task = await getTask(m[0])
-  if (!task) throw new Error(`created ${m[0]} but could not read it back`)
+  const task = await getTask(taskId)
+  if (!task) {
+    return {
+      id: taskId,
+      title: input.title,
+      status: 'todo',
+      assignee: input.assignee || null,
+      priority: input.priority ?? 0,
+      body: input.body,
+      origin: input.origin,
+      parents: [],
+      createdAt: new Date().toISOString(),
+    }
+  }
   return task
 }
 

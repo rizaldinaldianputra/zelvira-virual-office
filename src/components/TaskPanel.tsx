@@ -263,7 +263,15 @@ export default function TaskPanel() {
             </div>
             <div className="vp-kv">
               <span>prioritas</span>
-              <b>{task.priority}</b>
+              <b>
+                {task.priority === 3
+                  ? 'Critical'
+                  : task.priority === 2
+                    ? 'High'
+                    : task.priority === 1
+                      ? 'Medium'
+                      : 'Low'}
+              </b>
             </div>
             <div className="vp-kv">
               <span>model worker</span>

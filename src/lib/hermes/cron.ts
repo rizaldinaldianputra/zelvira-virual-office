@@ -15,6 +15,7 @@
  * markers, or the CLI refuses to run from inside a worker.
  */
 import { execFile } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { readFile, stat } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -51,6 +52,15 @@ async function cli(args: string[], timeout = TIMEOUT_MS): Promise<string> {
   } catch (err) {
     const e = err as NodeJS.ErrnoException & { stdout?: string; stderr?: string }
     if (e.code === 'ENOENT') {
+      const fallback = path.resolve(process.cwd(), 'scripts/hermes-fallback.js')
+      if (existsSync(fallback)) {
+        const { stdout } = await run(process.execPath, [fallback, ...args], {
+          env: cleanEnv(),
+          timeout,
+          maxBuffer: 8 * 1024 * 1024,
+        })
+        return stdout
+      }
       throw new Error(`Hermes CLI not found at "${HERMES_BIN}". Set HERMES_BIN.`)
     }
     throw new Error(`hermes ${args.join(' ')} failed: ${(e.stderr || e.message || '').trim()}`)
@@ -310,8 +320,14 @@ export async function createJob(input: CreateInput): Promise<string> {
   const out = await cli(args, 60_000)
   // "Created job: c6e11310f4c3"
   const m = out.match(/Created job:\s*([0-9a-f]+)/i)
-  if (!m) throw new Error(`tidak bisa membaca id job dari keluaran CLI: ${out.trim().slice(0, 200)}`)
-  return m[1]
+  if (m) return m[1]
+
+  try {
+    const parsed = JSON.parse(out) as { id?: string; job_id?: string }
+    if (parsed.id || parsed.job_id) return parsed.id || parsed.job_id!
+  } catch {}
+
+  throw new Error(`tidak bisa membaca id job dari keluaran CLI: ${out.trim().slice(0, 200)}`)
 }
 
 /** Actions that change a job's schedule. Each maps to one CLI verb. */

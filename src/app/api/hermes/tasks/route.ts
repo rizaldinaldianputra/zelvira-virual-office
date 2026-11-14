@@ -47,6 +47,20 @@ export async function GET() {
  * `origin` records where the work came from so the board can show it and the source
  * panel can list what it produced. It is written to `created_by` as a marker.
  */
+function parsePriority(val: unknown): number | undefined {
+  if (typeof val === 'number' && Number.isFinite(val)) return val
+  if (typeof val === 'string') {
+    const s = val.toLowerCase().trim()
+    if (s === 'critical') return 3
+    if (s === 'high') return 2
+    if (s === 'medium') return 1
+    if (s === 'low') return 0
+    const n = Number(s)
+    if (Number.isFinite(n)) return n
+  }
+  return undefined
+}
+
 export async function POST(req: NextRequest) {
   const denied = assertLocalWriteRequest(req)
   if (denied) return denied
@@ -80,7 +94,7 @@ export async function POST(req: NextRequest) {
       title: title.slice(0, 300),
       assignee,
       body: typeof b.body === 'string' ? b.body : undefined,
-      priority: Number.isFinite(Number(b.priority)) ? Number(b.priority) : undefined,
+      priority: parsePriority(b.priority),
       origin,
     })
     return NextResponse.json({ success: true, task }, { status: 201 })
@@ -122,7 +136,7 @@ async function createMany(raw: unknown[], origin: TaskOrigin) {
   const failed: { title: string; error: string }[] = []
 
   // Bounded: a runaway source must not create hundreds of tasks in one request.
-  for (const it of raw.slice(0, 25)) {
+  for (const it of raw.slice(0, 100)) {
     const row = (it ?? {}) as Record<string, unknown>
     const title = String(row.title ?? row.text ?? '').trim().slice(0, 300)
     const assignee = String(row.assignee ?? '').trim()
@@ -136,7 +150,7 @@ async function createMany(raw: unknown[], origin: TaskOrigin) {
         title,
         assignee,
         body: typeof row.body === 'string' && row.body.trim() ? row.body : undefined,
-        priority: Number.isFinite(Number(row.priority)) ? Number(row.priority) : undefined,
+        priority: parsePriority(row.priority),
         origin,
       })
       created.push({ id: task.id, title: task.title, assignee })

@@ -162,6 +162,23 @@ export default function RestartNotice({
   return (
     <div className="vp-modal-backdrop" onClick={onClose}>
       <div className="vp-modal" onClick={(e) => e.stopPropagation()}>
+        <div style={{
+          background: 'rgba(16, 185, 129, 0.15)',
+          border: '1px solid rgba(16, 185, 129, 0.35)',
+          borderRadius: 8,
+          padding: '10px 14px',
+          marginBottom: 14,
+          color: '#34d399',
+          fontSize: 13
+        }}>
+          <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span>✅</span>
+            <span>Agent &quot;{agentName}&quot; Berhasil Dibuat &amp; Tersimpan!</span>
+          </div>
+          <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 3 }}>
+            Profil dan avatar agent sudah aktif di kantor virtual. Restart di bawah hanya diperlukan jika agent ini didaftarkan ke inter-agent A2A.
+          </div>
+        </div>
         <h3>Silahkan restart server</h3>
         <p className="vp-sub">
           Setelan &quot;{agentName}&quot; TERSIMPAN, tapi baru BERLAKU setelah server restart — daftar served-agent
@@ -249,6 +266,9 @@ export default function RestartNotice({
                     {copied ? 'tersalin ✓' : 'salin perintah'}
                   </button>
                 </div>
+                <p style={{ marginTop: 6, fontSize: 11, color: '#94a3b8' }}>
+                  Tip: Profil agent tetap tersimpan dan siap bekerja. Jika server berjalan di Docker container, restart gateway dapat dijalankan langsung di host bila perlu.
+                </p>
               </div>
             )}
             <div className="vp-modal-actions" style={{ marginTop: 8 }}>

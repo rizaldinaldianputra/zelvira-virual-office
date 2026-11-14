@@ -3,7 +3,7 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { assertLocalWriteRequest } from '@/lib/local-guard'
 import { decideRestart, type RunningReadout } from '@/lib/hermes/restart-guard'
-import { readRunningKanbanCards } from '@/lib/hermes/kanban'
+import { readRunningKanbanCards, runHermes } from '@/lib/hermes/kanban'
 
 export const dynamic = 'force-dynamic'
 
@@ -103,6 +103,7 @@ export async function POST(req: NextRequest) {
   }
 
   const env = { ...process.env, XDG_RUNTIME_DIR: '/run/user/0' }
+  let restartMethod = 'gw-restart.service'
   try {
     await run(
       'systemctl',
@@ -110,25 +111,33 @@ export async function POST(req: NextRequest) {
       { env, timeout: 15_000, maxBuffer: 64 * 1024 },
     )
   } catch (err) {
-    const msg = (err as Error).message.slice(0, 400)
-    return NextResponse.json(
-      {
-        success: false,
-        scheduled: false,
-        message:
-          'Restart TIDAK dijadwalkan — unit gw-restart.service gagal dijalankan. ' +
-          'Jalankan manual dari shell di mesin yang sama:',
-        manual: ['hermes gateway restart', 'systemctl --user start gw-restart.service'],
-        error: msg,
-      },
-      { status: 502 },
-    )
+    // Di lingkungan tanpa systemd (mis. container Docker atau Windows), coba jalur portabel
+    try {
+      await runHermes(['gateway', 'restart'])
+      restartMethod = 'hermes gateway restart'
+    } catch (hErr) {
+      const msg = (err as Error).message.slice(0, 400)
+      return NextResponse.json(
+        {
+          success: false,
+          scheduled: false,
+          message:
+            'Restart TIDAK dijadwalkan — unit gw-restart.service gagal dijalankan. ' +
+            'Jalankan manual dari shell di mesin yang sama:',
+          manual: ['hermes gateway restart', 'systemctl --user start gw-restart.service'],
+          error: msg,
+        },
+        { status: 502 },
+      )
+    }
   }
   return NextResponse.json({
     success: true,
     scheduled: true,
     message:
-      'Restart dijadwalkan lewat gw-restart.service — halaman ini akan kehilangan ' +
-      'sambungan sebentar. Hasilnya (berhasil ATAU gagal) dilaporkan ke Telegram.',
+      restartMethod === 'gw-restart.service'
+        ? 'Restart dijadwalkan lewat gw-restart.service — halaman ini akan kehilangan ' +
+          'sambungan sebentar. Hasilnya (berhasil ATAU gagal) dilaporkan ke Telegram.'
+        : 'Restart gateway dijadwalkan lewat hermes gateway restart — halaman siap dimuat ulang.',
   })
 }
