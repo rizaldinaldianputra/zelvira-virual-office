@@ -128,16 +128,20 @@ function logoTexture(): THREE.Texture {
   if (typeof window !== 'undefined' && typeof Image !== 'undefined') {
     try {
       const loader = new THREE.TextureLoader()
-      const tex = loader.load('/logo.png')
+      const tex = loader.load('/logo.png', () => {
+        tex.needsUpdate = true
+      })
       tex.colorSpace = THREE.SRGBColorSpace
+      tex.anisotropy = 8
+      tex.generateMipmaps = true
       return tex
     } catch {}
   }
-  return canvasTex(256, (c, s) => {
-    c.fillStyle = '#0f172a'
+  return canvasTex(512, (c, s) => {
+    c.fillStyle = '#070b14'
     c.fillRect(0, 0, s, s)
-    c.fillStyle = '#38bdf8'
-    c.font = 'bold 36px sans-serif'
+    c.fillStyle = '#f97316'
+    c.font = 'bold 54px sans-serif'
     c.textAlign = 'center'
     c.textBaseline = 'middle'
     c.fillText('ZELVIRA', s / 2, s / 2)
@@ -145,32 +149,99 @@ function logoTexture(): THREE.Texture {
 }
 
 /**
- * Elegant illuminated acrylic logo plaque mounted flat on an interior office wall.
- * Contains subtle dark acrylic backplate, metallic mounting rim, and the high-res Zelvira emblem.
+ * Elegant illuminated acrylic logo plaque mounted on office walls and exterior facades.
+ * Features illuminated backplate, metallic gold mounting trim, and self-illuminated Zelvira emblem.
  */
-function createWallLogo(w = 1.6, h = 1.0): THREE.Group {
+function createWallLogo(w = 2.4, h = 0.71, illuminated = true): THREE.Group {
   const g = new THREE.Group()
-  // Acrylic / tinted glass backplate
-  const backplate = box(w + 0.16, h + 0.16, 0.03, 0x0f172a, { rough: 0.35, metal: 0.4 })
+
+  // Acrylic dark mounting backplate
+  const backplate = box(w + 0.16, h + 0.16, 0.03, 0x070b14, { rough: 0.25, metal: 0.3 })
   backplate.castShadow = true
   g.add(backplate)
 
-  // Metallic rim / trim
-  const rim = box(w + 0.2, h + 0.2, 0.015, 0x334155, { rough: 0.2, metal: 0.85 })
+  // Metallic brushed gold/copper rim matching Zelvira branding
+  const rim = box(w + 0.2, h + 0.2, 0.015, 0xd4af37, { rough: 0.3, metal: 0.85 })
   rim.position.z = -0.01
   g.add(rim)
 
-  // Zelvira logo face
+  // Illuminated LED halo light bar behind the backplate
+  if (illuminated) {
+    const halo = box(w + 0.08, h + 0.08, 0.005, 0x38bdf8, {
+      rough: 0.1,
+      emissive: 0x38bdf8,
+      ei: 0.6,
+    })
+    halo.position.z = -0.018
+    g.add(halo)
+  }
+
+  // Zelvira logo face with self-illumination (emissive)
+  const tex = logoTexture()
   const logoMat = new THREE.MeshStandardMaterial({
-    map: logoTexture(),
+    map: tex,
     transparent: true,
-    roughness: 0.25,
+    roughness: 0.15,
     metalness: 0.1,
+    side: THREE.DoubleSide,
+    emissive: new THREE.Color(0xffffff),
+    emissiveMap: tex,
+    emissiveIntensity: illuminated ? 0.45 : 0.2,
   })
   const face = new THREE.Mesh(new THREE.PlaneGeometry(w, h), logoMat)
   face.position.z = 0.02
   face.name = 'office-wall-logo-face'
   g.add(face)
+
+  return g
+}
+
+/**
+ * Architectural corporate totem sign standing outside the building.
+ */
+function createExteriorTotem(): THREE.Group {
+  const g = new THREE.Group()
+
+  // Base stone footing
+  const base = box(1.8, 0.25, 0.7, 0x1e293b, { rough: 0.85, metal: 0.1 })
+  base.position.y = 0.125
+  base.castShadow = true
+  g.add(base)
+
+  // Main dark architectural monolith
+  const monolith = box(1.5, 2.4, 0.35, 0x0f172a, { rough: 0.35, metal: 0.6 })
+  monolith.position.y = 1.35
+  monolith.castShadow = true
+  g.add(monolith)
+
+  // Gold vertical accent strip along left & right sides
+  for (const sx of [-0.74, 0.74]) {
+    const strip = box(0.04, 2.42, 0.37, 0xd4af37, { rough: 0.2, metal: 0.9 })
+    strip.position.set(sx, 1.35, 0)
+    g.add(strip)
+  }
+
+  // South-facing logo (towards road / camera view)
+  const southLogo = createWallLogo(1.3, 0.38, true)
+  southLogo.position.set(0, 1.85, 0.185)
+  southLogo.name = 'office-totem-logo-south'
+  g.add(southLogo)
+
+  // North-facing logo (towards visitors leaving building)
+  const northLogo = createWallLogo(1.3, 0.38, true)
+  northLogo.rotation.y = Math.PI
+  northLogo.position.set(0, 1.85, -0.185)
+  northLogo.name = 'office-totem-logo-north'
+  g.add(northLogo)
+
+  // Illuminated welcome text plaque under logo
+  const textPlate = box(1.2, 0.25, 0.02, 0x38bdf8, {
+    rough: 0.2,
+    emissive: 0x38bdf8,
+    ei: 0.4,
+  })
+  textPlate.position.set(0, 1.35, 0.18)
+  g.add(textPlate)
 
   return g
 }
@@ -1149,6 +1220,18 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     const m = box(4.4, 0.5, WALL_T, 0xe8eef2, { rough: 0.6 })
     m.position.set(DOOR.x, 2.35, HALF_D)
     group.add(m)
+
+    // 1. Logo Zelvira eksterior di atas pintu masuk utama (luar gedung)
+    const exteriorDoorLogo = createWallLogo(3.2, 0.95, true)
+    exteriorDoorLogo.position.set(DOOR.x, 2.35, HALF_D + WALL_T / 2 + 0.03)
+    exteriorDoorLogo.name = 'office-exterior-logo-entrance'
+    group.add(exteriorDoorLogo)
+
+    // 2. Monolit / Totem Landmark Zelvira Luar Gedung di depan plaza kantor
+    const exteriorTotem = createExteriorTotem()
+    exteriorTotem.position.set(4.2, 0, HALF_D + 2.2)
+    exteriorTotem.name = 'office-exterior-totem'
+    group.add(exteriorTotem)
   }
   // courtyard-facing walls, SPLIT AT EVERY DOORWAY, from the same shared list the
   // collision footprints use. Building a solid wall here and then adding door jambs
@@ -2279,8 +2362,8 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     boardSurface = board
 
     // Logo Zelvira di dinding ruang rapat Rinjani, di samping papan Kanban
-    const rinjaniLogo = createWallLogo(1.6, 1.0)
-    rinjaniLogo.position.set(-8.5, KANBAN_BOARD.y, KANBAN_BOARD.z)
+    const rinjaniLogo = createWallLogo(2.4, 0.71, true)
+    rinjaniLogo.position.set(-8.5, KANBAN_BOARD.y, KANBAN_BOARD.z + 0.05)
     rinjaniLogo.name = 'office-wall-logo-rinjani'
     group.add(rinjaniLogo)
   }
@@ -2559,21 +2642,35 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     chair.add(backr)
     group.add(chair)
 
-    // Logo Zelvira di dinding lobby tepat di belakang meja resepsionis
-    const lobbyWallLogo = createWallLogo(2.2, 1.4)
-    lobbyWallLogo.position.set(RECEPTION.x, 2.1, 16.12)
-    lobbyWallLogo.name = 'office-wall-logo-lobby'
-    group.add(lobbyWallLogo)
+    // 1. Logo Zelvira di counter depan meja resepsionis (menghadap ke pintu masuk selatan)
+    const receptionLogo = createWallLogo(1.8, 0.53, true)
+    receptionLogo.position.set(RECEPTION.x, 0.55, RECEPTION.z + 0.38)
+    receptionLogo.name = 'office-reception-counter-logo'
+    group.add(receptionLogo)
 
-    // Logo Zelvira di dinding koridor divisi barat lantai 0 (menghadap courtyard)
-    const divLogo = createWallLogo(1.8, 1.1)
+    // 2. Logo Zelvira di dinding barat lobby
+    const lobbyWestLogo = createWallLogo(2.4, 0.71, true)
+    lobbyWestLogo.rotation.y = Math.PI / 2
+    lobbyWestLogo.position.set(-13.88, 2.0, 18.5)
+    lobbyWestLogo.name = 'office-wall-logo-lobby-west'
+    group.add(lobbyWestLogo)
+
+    // 3. Logo Zelvira di dinding timur lobby
+    const lobbyEastLogo = createWallLogo(2.4, 0.71, true)
+    lobbyEastLogo.rotation.y = -Math.PI / 2
+    lobbyEastLogo.position.set(13.88, 2.0, 18.5)
+    lobbyEastLogo.name = 'office-wall-logo-lobby-east'
+    group.add(lobbyEastLogo)
+
+    // 4. Logo Zelvira di dinding koridor divisi barat lantai 0 (menghadap courtyard)
+    const divLogo = createWallLogo(2.4, 0.71, true)
     divLogo.rotation.y = Math.PI / 2
     divLogo.position.set(-13.88, 1.9, 0)
     divLogo.name = 'office-wall-logo-division'
     group.add(divLogo)
 
-    // Logo Zelvira di dinding koridor timur lantai 0 (menghadap courtyard)
-    const eastLogo = createWallLogo(1.8, 1.1)
+    // 5. Logo Zelvira di dinding koridor timur lantai 0 (menghadap courtyard)
+    const eastLogo = createWallLogo(2.4, 0.71, true)
     eastLogo.rotation.y = -Math.PI / 2
     eastLogo.position.set(13.88, 1.9, -4.0)
     eastLogo.name = 'office-wall-logo-east'
