@@ -1534,24 +1534,182 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     }
   }
 
-  /* --------------------------------------------------------------- roof --- */
+  /* ------------------------------------------------------------ level 2 (tingkat 3) -- */
+  // TINGKAT 3: VIP Penthouse Sky Lounge & Executive Atrium
+  // Memperbesar gedung menjadi 3 lantai megah, elegan, dan realistis.
+  // Sisi barat (x: -28..-5) merupakan Sky Atrium void 2 lantai yang terbuka ke ruang CEO & Rinjani,
+  // sehingga papan Kanban dan ruang rapat lantai 2 tetap terlihat jelas dari sudut kamera atas.
+  // Sisi tengah & timur (x: -5..28) merupakan VIP Penthouse Sky Lounge & Observation Deck mewah.
   {
-    // DOLLHOUSE: the roof is a THIN RIM around the north bar, not a lid. A solid
-    // roof hid the whole exec floor — the CEO suite, all five meeting rooms and the
-    // whiteboard were under an opaque slab. The rim keeps the building reading as a
-    // building from outside while leaving the interior visible from above.
+    const LEVEL2_Y = LEVEL_H * 2 // 6.8 m (lantai 3)
+    const LEVEL3_Y = LEVEL_H * 3 // 10.2 m (mahkota atap)
     const n = BARS.north
-    for (const [px, pz, pw, pd] of [
-      [0, -HALF_D - 0.3, HALF_W * 2 + 0.6, 0.6],
-      [0, -9 + 0.3, HALF_W * 2 + 0.6, 0.6],
-      [-HALF_W - 0.3, (n.z1 + n.z2) / 2, 0.6, n.z2 - n.z1 + 0.6],
-      [HALF_W + 0.3, (n.z1 + n.z2) / 2, 0.6, n.z2 - n.z1 + 0.6],
-    ] as const) {
-      const p = box(pw, 0.55, pd, 0x8f9aa0, { rough: 0.9 })
-      p.position.set(px, LEVEL_H * 2 + 0.35, pz)
-      p.castShadow = true
-      group.add(p)
+
+    // 1. Lantai marmer & kayu penthouse deck lantai 3 (x: -5 sampai 28)
+    const deckX1 = -5.0
+    const deckX2 = HALF_W
+    const deckW = deckX2 - deckX1
+    const deckD = n.z2 - n.z1
+    const deckMidX = (deckX1 + deckX2) / 2
+    const deckMidZ = (n.z1 + n.z2) / 2
+
+    // Slab lantai dasar lantai 3
+    const l2Slab = box(deckW, 0.18, deckD, 0x1e2530, { rough: 0.85 })
+    l2Slab.position.set(deckMidX, LEVEL2_Y - 0.09, deckMidZ)
+    l2Slab.receiveShadow = true
+    group.add(l2Slab)
+
+    // Lantai marmer cerah mewah
+    const l2Marble = new THREE.Mesh(new THREE.PlaneGeometry(deckW - 0.1, deckD - 0.1), marbleMat)
+    l2Marble.rotation.x = -Math.PI / 2
+    l2Marble.position.set(deckMidX, LEVEL2_Y + 0.01, deckMidZ)
+    l2Marble.receiveShadow = true
+    group.add(l2Marble)
+
+    // Fascia emas arsitektural di sepanjang tepi selatan lantai 3 (z = -9.0)
+    const fascia = box(deckW, 0.45, 0.18, 0xd4af37, { metal: 0.85, rough: 0.25 })
+    fascia.position.set(deckMidX, LEVEL2_Y - 0.22, n.z2)
+    group.add(fascia)
+
+    // 2. Dinding luar lantai 3 (dollhouse cut 1.6m)
+    const shell2 = (x1: number, z1: number, x2: number, z2: number) => {
+      const horizontal = Math.abs(x2 - x1) > Math.abs(z2 - z1)
+      const len = horizontal ? Math.abs(x2 - x1) : Math.abs(z2 - z1)
+      const m = new THREE.Mesh(
+        new THREE.BoxGeometry(horizontal ? len : WALL_T, CUT_H, horizontal ? WALL_T : len),
+        plasterMat,
+      )
+      m.position.set((x1 + x2) / 2, LEVEL2_Y + CUT_H / 2, (z1 + z2) / 2)
+      m.castShadow = true
+      m.receiveShadow = true
+      group.add(m)
     }
+    shell2(-HALF_W, -HALF_D, HALF_W, -HALF_D)
+    shell2(HALF_W, -HALF_D, HALF_W, -9)
+    shell2(-HALF_W, -HALF_D, -HALF_W, -9)
+
+    // 3. Kaca balustrade observasi sky terrace (z = -9.0) menghadap courtyard
+    const l2Rail = new THREE.Mesh(new THREE.BoxGeometry(deckW, 1.0, 0.06), glassMat)
+    l2Rail.position.set(deckMidX, LEVEL2_Y + 0.5, -9)
+    group.add(l2Rail)
+    const l2Cap = box(deckW, 0.07, 0.12, 0xd4af37, { metal: 0.85, rough: 0.25 })
+    l2Cap.position.set(deckMidX, LEVEL2_Y + 1.0, -9)
+    group.add(l2Cap)
+
+    // 4. Kaca balustrade sky atrium di x = -5.0 (menghadap ke void ruang CEO & Rinjani)
+    const atriumRail = new THREE.Mesh(new THREE.BoxGeometry(0.06, 1.0, deckD), glassMat)
+    atriumRail.position.set(deckX1, LEVEL2_Y + 0.5, deckMidZ)
+    group.add(atriumRail)
+    const atriumCap = box(0.12, 0.07, deckD, 0xd4af37, { metal: 0.85, rough: 0.25 })
+    atriumCap.position.set(deckX1, LEVEL2_Y + 1.0, deckMidZ)
+    group.add(atriumCap)
+
+    // 5. Pilar titanium lantai 3 penyangga kanopi atap
+    for (const cx of [deckX1, 0, 6, 12, 18, 24, deckX2]) {
+      const col = cyl(0.12, 0.12, LEVEL_H, 0x0f172a, 12, 0.7)
+      col.position.set(cx, LEVEL2_Y + LEVEL_H / 2, -9)
+      col.castShadow = true
+      group.add(col)
+    }
+
+    // 6. Fasilitas VIP Penthouse Sky Lounge
+    // Sofa L-Shape kontemporer mewah
+    const sofa1 = new THREE.Mesh(rbox(3.4, 0.45, 1.3, 0.06), stdMat(0x1e293b, { rough: 0.75 }))
+    sofa1.position.set(6.0, LEVEL2_Y + 0.22, -12.8)
+    group.add(sofa1)
+    const back1 = new THREE.Mesh(rbox(3.4, 0.48, 0.25, 0.05), stdMat(0x1e293b, { rough: 0.75 }))
+    back1.position.set(6.0, LEVEL2_Y + 0.55, -13.4)
+    group.add(back1)
+
+    // Meja cocktail marmer dengan list emas
+    const cTable = new THREE.Mesh(rbox(2.0, 0.38, 0.9, 0.04), marbleMat)
+    cTable.position.set(6.0, LEVEL2_Y + 0.19, -11.0)
+    group.add(cTable)
+    const cRim = box(2.05, 0.04, 0.95, 0xd4af37, { metal: 0.9, rough: 0.2 })
+    cRim.position.set(6.0, LEVEL2_Y + 0.38, -11.0)
+    group.add(cRim)
+
+    // Sofa santai sayap timur
+    const sofa2 = new THREE.Mesh(rbox(1.3, 0.45, 3.2, 0.06), stdMat(0x1e293b, { rough: 0.75 }))
+    sofa2.position.set(17.0, LEVEL2_Y + 0.22, -15.0)
+    group.add(sofa2)
+
+    // Sky Bar Island counter mewah
+    const barIsland = box(4.0, 1.05, 0.9, 0x0f172a, { rough: 0.3, metal: 0.6 })
+    barIsland.position.set(11.0, LEVEL2_Y + 0.52, -18.2)
+    group.add(barIsland)
+    const barTop = new THREE.Mesh(rbox(4.1, 0.08, 1.0, 0.03), woodMat)
+    barTop.position.set(11.0, LEVEL2_Y + 1.08, -18.2)
+    group.add(barTop)
+
+    // Aksen LED pendar emas di bawah meja Sky Bar
+    const barLed = box(3.9, 0.04, 0.04, 0xf59e0b, { emissive: 0xf59e0b, ei: 0.95 })
+    barLed.position.set(11.0, LEVEL2_Y + 1.0, -17.72)
+    group.add(barLed)
+
+    // Barstools di depan Sky Bar
+    for (let bx = 9.5; bx <= 12.5; bx += 1.0) {
+      const stool = cyl(0.18, 0.18, 0.75, 0xd4af37, 12, 0.8)
+      stool.position.set(bx, LEVEL2_Y + 0.375, -17.0)
+      group.add(stool)
+      const seat = cyl(0.22, 0.22, 0.08, 0x1e293b, 12, 0.2)
+      seat.position.set(bx, LEVEL2_Y + 0.79, -17.0)
+      group.add(seat)
+    }
+
+    // Tanaman rooftop eksotis dalam planter modern
+    for (const px of [0.5, 12.0, 22.0]) {
+      const planter = box(1.6, 0.55, 0.55, 0x334155, { rough: 0.7 })
+      planter.position.set(px, LEVEL2_Y + 0.28, -9.45)
+      group.add(planter)
+      for (let i = 0; i < 2; i++) {
+        const bush = new THREE.Mesh(new THREE.IcosahedronGeometry(0.38, 0), stdMat(0x4f8b55, { rough: 0.9 }))
+        bush.position.set(px + (i === 0 ? -0.4 : 0.4), LEVEL2_Y + 0.75, -9.45)
+        group.add(bush)
+      }
+    }
+
+    // 7. LOGO ZELVIRA DI LANTAI 3 (VIP SKY LOUNGE & TERRACE)
+    // (a) Logo plakat fitur di dinding utara Sky Lounge
+    const skyLoungeLogo = createWallLogo(3.2, 0.95, true, 0xf59e0b)
+    skyLoungeLogo.position.set(6.0, LEVEL2_Y + 1.85, -HALF_D + 0.08)
+    skyLoungeLogo.name = 'office-penthouse-sky-lounge-logo'
+    group.add(skyLoungeLogo)
+
+    // (b) Logo plakat kristal di kaca balustrade teras observasi lantai 3
+    const terraceLogo = createWallLogo(2.2, 0.65, true, 0x38bdf8)
+    terraceLogo.position.set(6.0, LEVEL2_Y + 0.65, -8.95)
+    terraceLogo.name = 'office-penthouse-terrace-logo'
+    group.add(terraceLogo)
+
+    // 8. MAHKOTA ATAP PERGOLA LANTAI 3 (Roof Crown at 10.2 m)
+    // Sisi selatan terbuka di x: -15 sampai -5 untuk sky atrium void di atas ruang Rinjani
+    for (const [px, pz, pw, pd] of [
+      [0, -HALF_D - 0.3, HALF_W * 2 + 0.6, 0.6], // north outer crown
+      [deckMidX, -9 + 0.3, deckW + 0.6, 0.6], // south penthouse crown (x: -5..28)
+      [-21.5, -9 + 0.3, 13.0, 0.6], // south west corner crown (x: -28..-15)
+      [-HALF_W - 0.3, (n.z1 + n.z2) / 2, 0.6, n.z2 - n.z1 + 0.6], // west outer crown
+      [HALF_W + 0.3, (n.z1 + n.z2) / 2, 0.6, n.z2 - n.z1 + 0.6], // east outer crown
+    ] as const) {
+      const crown = box(pw, 0.55, pd, 0x1e293b, { rough: 0.35, metal: 0.7 })
+      crown.position.set(px, LEVEL3_Y + 0.35, pz)
+      crown.castShadow = true
+      group.add(crown)
+    }
+
+    // Bilah pergola louver arsitektural emas menaungi teras lantai 3
+    for (let lz = -19; lz <= -11; lz += 2.0) {
+      const louver = box(deckW, 0.08, 0.25, 0xd4af37, { metal: 0.85, rough: 0.3 })
+      louver.position.set(deckMidX, LEVEL3_Y + 0.15, lz)
+      group.add(louver)
+    }
+
+    // 9. GRAND ROOFTOP CROWN LANDMARK LOGO (Logo Puncak Tertinggi Gedung Lantai 3)
+    // Menghadap langsung ke arah selatan (kamera awal dan courtyard) di puncak lantai 3
+    const penthouseCrownLogo = createWallLogo(4.8, 1.42, true, 0xf59e0b)
+    penthouseCrownLogo.position.set(6.0, LEVEL3_Y + 0.15, -8.92)
+    penthouseCrownLogo.name = 'office-rooftop-crown-landmark-logo'
+    group.add(penthouseCrownLogo)
   }
 
   /* ---------------------------------------------------- ceiling + lights -- */
