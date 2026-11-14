@@ -1,3 +1,4 @@
+
 services:
   zelvira-office:
     build:
@@ -6,8 +7,10 @@ services:
     image: zelvira-virtual-office:latest
     container_name: zelvira-virtual-office
     restart: unless-stopped
+
     ports:
       - "${PORT:-3002}:3000"
+
     environment:
       - NODE_ENV=production
       - PORT=3000
@@ -19,10 +22,14 @@ services:
       - AI_BASE_URL=${AI_BASE_URL:-}
       - AI_API_KEY=${AI_API_KEY:-}
       - AI_MODEL=${AI_MODEL:-}
+
     volumes:
       - office-data:/app/data
-      # Mount direktori Hermes dari host (berisi config.yaml, profiles, model nvidia, dll.)
       - ${HERMES_HOME_HOST:-~/.hermes}:/root/.hermes
+
+    networks:
+      - zelvira-network
+
     healthcheck:
       test: ["CMD-SHELL", "node -e 'require(\"http\").get(\"http://127.0.0.1:3000\", (r) => { process.exit(r.statusCode === 200 || r.statusCode === 304 ? 0 : 1); })'"]
       interval: 30s
@@ -33,3 +40,8 @@ services:
 volumes:
   office-data:
     driver: local
+
+networks:
+  zelvira-network:
+    external: true
+    name: zelvira-network
