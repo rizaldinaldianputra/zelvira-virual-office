@@ -45,7 +45,7 @@ import {
   type IdleSpot,
   type MeetingRoomId,
 } from './layout'
-import type { Agent, AgentDivision, AgentRole, Meeting, Task } from '@/types/hermes'
+import type { Agent, AgentDivision, AgentRole, Meeting, Task, TaskStatus } from '@/types/hermes'
 import { dutyOf, a2aTarget, type Duty, type WorkSignals } from './duty'
 import type { AvatarState } from './types'
 
@@ -112,6 +112,10 @@ export type SceneAgent = AnimAgent & {
   bubble: CSS2DObject
   label: CSS2DObject
   bubbleTimer: number
+  /** Text shown in the bubble when agent has an active / assigned task. */
+  activeTaskText?: string
+  /** Status of the active task ('running', 'todo', 'review', etc.) */
+  activeTaskStatus?: TaskStatus
   /** Seconds remaining of the "entering through the door" walk. */
   spawnGate?: number
   /** Set when the agent is leaving: walk out of the door, then despawn. */
@@ -331,7 +335,7 @@ export function createScene(
     const bubbleEl = document.createElement('div')
     bubbleEl.className = 'vp-bubble'
     const bubble = new CSS2DObject(bubbleEl)
-    bubble.position.set(0, 2.35, 0)
+    bubble.position.set(0, 2.80, 0)
     av.group.add(bubble)
     bubble.visible = false
 
@@ -390,6 +394,81 @@ export function createScene(
     el.dataset.status = a.data.status
     el.dataset.role = a.data.role
     el.dataset.kind = a.kind
+  }
+
+  let allTasks: Task[] = []
+
+  function getAgentActiveTask(agentName: string, agentDisplay?: string): Task | undefined {
+    const normName = agentName.toLowerCase().trim()
+    const normDisplay = (agentDisplay || '').toLowerCase().trim()
+
+    const assigned = allTasks.filter((t) => {
+      if (!t.assignee) return false
+      const asg = t.assignee.toLowerCase().trim()
+      return asg === normName || asg === normDisplay || (normName === 'default' && asg === 'default')
+    })
+
+    if (!assigned.length) return undefined
+
+    // 1. Highest priority: running task (actively processing)
+    const running = assigned.find((t) => t.status === 'running')
+    if (running) return running
+
+    // 2. Queued / ready / todo task
+    const todo = assigned.find((t) => t.status === 'todo' || t.status === 'ready' || t.status === 'scheduled' || t.status === 'triage')
+    if (todo) return todo
+
+    // 3. Review task
+    const review = assigned.find((t) => t.status === 'review')
+    if (review) return review
+
+    return undefined
+  }
+
+  function applyBubbleState(a: SceneAgent) {
+    // If agent is currently speaking in a meeting or chat (say()), keep speech text until timer expires
+    if (a.bubbleTimer > 0) return
+
+    const el = a.bubble.element as HTMLDivElement
+    if (a.activeTaskText) {
+      el.textContent = a.activeTaskText
+      if (a.activeTaskStatus === 'running' || a.data.status === 'working') {
+        el.className = 'vp-bubble vp-bubble-running'
+      } else if (a.activeTaskStatus === 'review') {
+        el.className = 'vp-bubble vp-bubble-review'
+      } else {
+        el.className = 'vp-bubble vp-bubble-task'
+      }
+      a.bubble.visible = true
+    } else {
+      el.className = 'vp-bubble'
+      a.bubble.visible = false
+    }
+  }
+
+  function updateAgentTaskBubbles() {
+    for (const a of avatars) {
+      const task = getAgentActiveTask(a.data.name, a.data.displayName)
+      if (task) {
+        a.activeTaskStatus = task.status
+        const shortTitle = task.title.length > 40 ? task.title.slice(0, 38) + '…' : task.title
+        if (task.status === 'running' || a.data.status === 'working') {
+          a.activeTaskText = `⚡ Sedang mengerjakan:\n"${shortTitle}"`
+        } else if (task.status === 'review') {
+          a.activeTaskText = `🔍 Meninjau:\n"${shortTitle}"`
+        } else {
+          a.activeTaskText = `📋 Tugas:\n"${shortTitle}"`
+        }
+      } else if (a.data.status === 'working') {
+        a.activeTaskStatus = 'running'
+        a.activeTaskText = '⚡ Sedang memproses tugas...'
+      } else {
+        a.activeTaskStatus = undefined
+        a.activeTaskText = undefined
+      }
+
+      applyBubbleState(a)
+    }
   }
 
   function removeAvatar(a: SceneAgent) {
@@ -493,6 +572,7 @@ export function createScene(
       }
     }
     restored = true
+    updateAgentTaskBubbles()
   }
 
   // ---- work signals (chat / cron) ----------------------------------------------
@@ -1151,7 +1231,7 @@ export function createScene(
 
       if (a.bubbleTimer > 0) {
         a.bubbleTimer -= dt * 1000
-        if (a.bubbleTimer <= 0) a.bubble.visible = false
+        if (a.bubbleTimer <= 0) applyBubbleState(a)
       }
       if (a.meetingTalking && a.bubbleTimer <= 0) {
         a.bubbleTimer = 1200
@@ -1247,9 +1327,10 @@ export function createScene(
     camera.updateProjectionMatrix()
   }
 
-  /** Kept for the OfficeApp contract; the 3D view no longer draws cards. */
-  function setTasks(_tasks: Task[]) {
-    void _tasks
+  /** Update Kanban tasks and reflect in avatar speech bubbles */
+  function setTasks(tasks: Task[]) {
+    allTasks = Array.isArray(tasks) ? tasks : []
+    updateAgentTaskBubbles()
   }
 
   function setMeeting(m: Meeting | null) {
@@ -1261,8 +1342,8 @@ export function createScene(
     } else {
       for (const a of avatars) {
         a.meetingTalking = false
-        a.bubble.visible = false
         a.bubbleTimer = 0
+        applyBubbleState(a)
       }
     }
   }
@@ -1272,6 +1353,7 @@ export function createScene(
     const a = byName.get(name)
     if (!a) return
     const el = a.bubble.element as HTMLDivElement
+    el.className = 'vp-bubble vp-bubble-speech'
     el.textContent = text
     a.bubble.visible = true
     a.bubbleTimer = ms

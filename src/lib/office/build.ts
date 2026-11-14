@@ -123,21 +123,36 @@ function canvasTex(size: number, draw: (c: CanvasRenderingContext2D, s: number) 
   return tex
 }
 
-/** Zelvira logo texture from /logo.png with fallback */
+/** Zelvira logo texture from /logo.png with cached instance and fallback */
+let cachedLogoTexture: THREE.Texture | null = null
+
 function logoTexture(): THREE.Texture {
+  if (cachedLogoTexture) return cachedLogoTexture
+
   if (typeof window !== 'undefined' && typeof Image !== 'undefined') {
     try {
       const loader = new THREE.TextureLoader()
-      const tex = loader.load('/logo.png', () => {
-        tex.needsUpdate = true
-      })
+      const tex = loader.load(
+        '/logo.png',
+        (loadedTex) => {
+          loadedTex.colorSpace = THREE.SRGBColorSpace
+          loadedTex.anisotropy = 8
+          loadedTex.generateMipmaps = true
+          loadedTex.needsUpdate = true
+        },
+        undefined,
+        (err) => {
+          console.warn('Gagal memuat /logo.png, beralih ke fallback canvas:', err)
+        }
+      )
       tex.colorSpace = THREE.SRGBColorSpace
       tex.anisotropy = 8
       tex.generateMipmaps = true
+      cachedLogoTexture = tex
       return tex
     } catch {}
   }
-  return canvasTex(512, (c, s) => {
+  const fallback = canvasTex(512, (c, s) => {
     c.fillStyle = '#070b14'
     c.fillRect(0, 0, s, s)
     c.fillStyle = '#f97316'
@@ -146,13 +161,15 @@ function logoTexture(): THREE.Texture {
     c.textBaseline = 'middle'
     c.fillText('ZELVIRA', s / 2, s / 2)
   })
+  cachedLogoTexture = fallback
+  return fallback
 }
 
 /**
  * Elegant illuminated acrylic logo plaque mounted on office walls and exterior facades.
  * Features illuminated backplate, metallic gold mounting trim, and self-illuminated Zelvira emblem.
  */
-function createWallLogo(w = 2.4, h = 0.71, illuminated = true): THREE.Group {
+function createWallLogo(w = 2.4, h = 0.71, illuminated = true, haloColor = 0xf59e0b): THREE.Group {
   const g = new THREE.Group()
 
   // Acrylic dark mounting backplate
@@ -167,10 +184,10 @@ function createWallLogo(w = 2.4, h = 0.71, illuminated = true): THREE.Group {
 
   // Illuminated LED halo light bar behind the backplate
   if (illuminated) {
-    const halo = box(w + 0.08, h + 0.08, 0.005, 0x38bdf8, {
+    const halo = box(w + 0.1, h + 0.1, 0.005, haloColor, {
       rough: 0.1,
-      emissive: 0x38bdf8,
-      ei: 0.6,
+      emissive: haloColor,
+      ei: 0.8,
     })
     halo.position.z = -0.018
     g.add(halo)
@@ -181,15 +198,15 @@ function createWallLogo(w = 2.4, h = 0.71, illuminated = true): THREE.Group {
   const logoMat = new THREE.MeshStandardMaterial({
     map: tex,
     transparent: true,
-    roughness: 0.15,
-    metalness: 0.1,
+    roughness: 0.1,
+    metalness: 0.05,
     side: THREE.DoubleSide,
     emissive: new THREE.Color(0xffffff),
     emissiveMap: tex,
-    emissiveIntensity: illuminated ? 0.45 : 0.2,
+    emissiveIntensity: illuminated ? 0.85 : 0.4,
   })
   const face = new THREE.Mesh(new THREE.PlaneGeometry(w, h), logoMat)
-  face.position.z = 0.02
+  face.position.z = 0.025
   face.name = 'office-wall-logo-face'
   g.add(face)
 
@@ -1294,6 +1311,12 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
       f.position.set((x1 + x2) / 2, LEVEL_H - 0.22, n.z2)
       group.add(f)
     }
+
+    // Grand illuminated Zelvira logo facing the courtyard and default camera
+    const courtyardGrandLogo = createWallLogo(3.6, 1.07, true)
+    courtyardGrandLogo.position.set(0, 3.85, n.z2 + 0.08)
+    courtyardGrandLogo.name = 'office-courtyard-grand-logo'
+    group.add(courtyardGrandLogo)
   }
   // level 1 outer walls (same footprint as level 0's north bar), dollhouse-cut to
   // the same 1.6 m as the ground floor so the exec floor reads from above.
@@ -2644,9 +2667,26 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
 
     // 1. Logo Zelvira di counter depan meja resepsionis (menghadap ke pintu masuk selatan)
     const receptionLogo = createWallLogo(1.8, 0.53, true)
-    receptionLogo.position.set(RECEPTION.x, 0.55, RECEPTION.z + 0.38)
+    receptionLogo.position.set(RECEPTION.x, 0.62, RECEPTION.z + 0.43)
     receptionLogo.name = 'office-reception-counter-logo'
     group.add(receptionLogo)
+
+    // 1b. Feature wall dan logo Zelvira di belakang meja resepsionis
+    const receptionBackdrop = box(3.6, 2.5, 0.08, 0x0b1320, { rough: 0.4, metal: 0.3 })
+    receptionBackdrop.position.set(RECEPTION.x, 1.45, RECEPTION.z - 1.7)
+    group.add(receptionBackdrop)
+
+    const receptionWallLogo = createWallLogo(2.6, 0.77, true)
+    receptionWallLogo.position.set(RECEPTION.x, 1.85, RECEPTION.z - 1.63)
+    receptionWallLogo.name = 'office-reception-backdrop-logo'
+    group.add(receptionWallLogo)
+
+    // 1c. Logo Zelvira di atas archway lobby menghadap ke courtyard & kolam renang
+    const courtyardSouthLogo = createWallLogo(2.6, 0.77, true)
+    courtyardSouthLogo.rotation.y = Math.PI
+    courtyardSouthLogo.position.set(0, 2.5, 15.95)
+    courtyardSouthLogo.name = 'office-courtyard-south-logo'
+    group.add(courtyardSouthLogo)
 
     // 2. Logo Zelvira di dinding barat lobby
     const lobbyWestLogo = createWallLogo(2.4, 0.71, true)
