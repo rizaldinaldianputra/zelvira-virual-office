@@ -485,6 +485,101 @@ export async function updateTaskStatus(id: string, status: string): Promise<bool
 }
 
 /**
+ * Cari kredensial LLM (API Key, Base URL, Model) dari berbagai sumber:
+ * 1. process.env (AI_API_KEY, NVIDIA_API_KEY, OPENAI_API_KEY)
+ * 2. ~/.hermes/.env di host/container
+ * 3. custom_providers di profiles/<assignee>/config.yaml
+ * 4. custom_providers di ~/.hermes/config.yaml global
+ */
+export async function resolveLlmCredentials(
+  assignee = 'default',
+  requestedModel?: string | null,
+): Promise<{ apiKey: string; baseUrl: string; modelName: string }> {
+  let apiKey = process.env.AI_API_KEY || process.env.NVIDIA_API_KEY || process.env.OPENAI_API_KEY || ''
+  let baseUrl = process.env.AI_BASE_URL || ''
+  let modelName = requestedModel || process.env.AI_MODEL || ''
+
+  // 1. Baca ~/.hermes/.env jika ada
+  try {
+    const envFile = path.join(hermesHome(), '.env')
+    if (existsSync(envFile)) {
+      const text = await readFile(envFile, 'utf8')
+      for (const line of text.split('\n')) {
+        const trimmed = line.trim()
+        if (!trimmed || trimmed.startsWith('#')) continue
+        const eq = trimmed.indexOf('=')
+        if (eq > 0) {
+          const k = trimmed.slice(0, eq).trim()
+          let v = trimmed.slice(eq + 1).trim()
+          if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+            v = v.slice(1, -1)
+          }
+          if (!apiKey && (k === 'AI_API_KEY' || k === 'NVIDIA_API_KEY' || k === 'OPENAI_API_KEY')) {
+            apiKey = v
+          }
+          if (!baseUrl && k === 'AI_BASE_URL') {
+            baseUrl = v
+          }
+          if (!modelName && k === 'AI_MODEL') {
+            modelName = v
+          }
+        }
+      }
+    }
+  } catch {}
+
+  // 2. Baca dari config.yaml profile dan root
+  const dirs = [
+    path.join(hermesHome(), 'profiles', assignee),
+    hermesHome(),
+  ]
+  const YAML = await import('yaml').then((m) => m.default || m).catch(() => null)
+
+  for (const dir of dirs) {
+    for (const f of ['config.yaml', 'config.yml', 'config.json']) {
+      const p = path.join(dir, f)
+      if (existsSync(p)) {
+        try {
+          const raw = await readFile(p, 'utf8')
+          let cfg: any = null
+          if (f.endsWith('.json')) {
+            cfg = JSON.parse(raw)
+          } else if (YAML) {
+            cfg = YAML.parse(raw)
+          }
+          if (!modelName && cfg?.model) {
+            modelName = typeof cfg.model === 'string' ? cfg.model : cfg.model.default || ''
+          }
+          if (Array.isArray(cfg?.custom_providers)) {
+            for (const prov of cfg.custom_providers) {
+              if (prov && typeof prov === 'object') {
+                const k = String(prov.api_key || '').trim()
+                if (k && !k.startsWith('***') && !apiKey) {
+                  apiKey = k
+                }
+                const url = String(prov.base_url || '').trim()
+                if (url && !baseUrl) {
+                  baseUrl = url
+                }
+              }
+            }
+          }
+        } catch {}
+      }
+    }
+  }
+
+  if (!modelName) modelName = 'nvidia/nemotron-3-ultra-55'
+  if (!baseUrl) {
+    baseUrl = modelName.startsWith('nvidia/')
+      ? 'https://integrate.api.nvidia.com/v1'
+      : 'https://api.openai.com/v1'
+  }
+
+  return { apiKey, baseUrl, modelName }
+}
+
+/**
  * Eksekusi task dengan AI Agent penanggung jawab.
  */
 export async function executeAgentTask(taskId: string): Promise<{ success: boolean; summary?: string; error?: string }> {
@@ -497,11 +592,8 @@ export async function executeAgentTask(taskId: string): Promise<{ success: boole
     readCache.clear()
 
     const assignee = task.assignee || 'default'
-    const pm = await profileModel(assignee).catch(() => ({ model: null, provider: null }))
-    const def = await getHermesDefaultModel().catch(() => ({ model: null, provider: null }))
-    const modelName = task.model || pm.model || def.model || process.env.AI_MODEL || 'nvidia/nemotron-3-ultra-55'
-    const apiKey = process.env.AI_API_KEY || process.env.NVIDIA_API_KEY || process.env.OPENAI_API_KEY || ''
-    const baseUrl = process.env.AI_BASE_URL || (modelName.startsWith('nvidia/') ? 'https://integrate.api.nvidia.com/v1' : 'https://api.openai.com/v1')
+    const creds = await resolveLlmCredentials(assignee, task.model)
+    const { apiKey, baseUrl, modelName } = creds
 
     const startSec = Math.floor(Date.now() / 1000)
     let summary = ''
