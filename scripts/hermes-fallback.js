@@ -14,15 +14,52 @@ const os = require('node:os')
 const crypto = require('node:crypto')
 
 let YAML = null
-try {
-  YAML = require('yaml')
-} catch {}
+for (const p of [
+  'yaml',
+  '/app/node_modules/yaml',
+  path.join(__dirname, '../node_modules/yaml'),
+  path.join(__dirname, 'node_modules/yaml'),
+  path.join(process.cwd(), 'node_modules/yaml'),
+]) {
+  try {
+    YAML = require(p)
+    if (YAML) break
+  } catch {}
+}
 
 const hermesDir = process.env.HERMES_HOME || path.join(os.homedir(), '.hermes')
 const kanbanFile = path.join(hermesDir, 'kanban.json')
 const profilesDir = path.join(hermesDir, 'profiles')
 const cronDir = path.join(hermesDir, 'cron')
 const cronFile = path.join(cronDir, 'jobs.json')
+
+// Auto-load environment variables from .env files if not already set
+function loadEnvFile(filePath) {
+  try {
+    if (!fs.existsSync(filePath)) return
+    const content = fs.readFileSync(filePath, 'utf8')
+    for (const line of content.split('\n')) {
+      const trimmed = line.trim()
+      if (!trimmed || trimmed.startsWith('#')) continue
+      const eqIdx = trimmed.indexOf('=')
+      if (eqIdx !== -1) {
+        const key = trimmed.slice(0, eqIdx).trim()
+        let val = trimmed.slice(eqIdx + 1).trim()
+        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+          val = val.slice(1, -1)
+        }
+        if (!process.env[key] && val) {
+          process.env[key] = val
+        }
+      }
+    }
+  } catch {}
+}
+
+loadEnvFile(path.join(hermesDir, '.env'))
+loadEnvFile(path.join(hermesDir, '.env.local'))
+loadEnvFile(path.join(process.cwd(), '.env.local'))
+loadEnvFile(path.join(process.cwd(), '.env'))
 
 // Ensure basic directories exist
 try {
@@ -64,6 +101,70 @@ function parseSimpleYaml(content) {
   return result
 }
 
+function toSimpleYaml(val, indent = 0) {
+  const pad = ' '.repeat(indent)
+  if (val === null || val === undefined) return 'null\n'
+  if (typeof val === 'string') {
+    if (val.includes('\n') || val.includes(':') || val.includes('#') || val.startsWith('{') || val.startsWith('[') || val === '') {
+      return JSON.stringify(val) + '\n'
+    }
+    return val + '\n'
+  }
+  if (typeof val === 'number' || typeof val === 'boolean') {
+    return String(val) + '\n'
+  }
+  if (Array.isArray(val)) {
+    if (val.length === 0) return '[]\n'
+    let out = '\n'
+    for (const item of val) {
+      if (typeof item === 'object' && item !== null && !Array.isArray(item)) {
+        const keys = Object.keys(item)
+        if (keys.length === 0) {
+          out += `${pad}- {}\n`
+          continue
+        }
+        const firstKey = keys[0]
+        const firstVal = item[firstKey]
+        const restKeys = keys.slice(1)
+        if (typeof firstVal === 'object' && firstVal !== null) {
+          out += `${pad}- ${firstKey}:${toSimpleYaml(firstVal, indent + 4)}`
+        } else {
+          const renderedFirst = typeof firstVal === 'string' && (firstVal.includes(':') || firstVal.includes('#') || !firstVal) ? JSON.stringify(firstVal) : (firstVal ?? 'null')
+          out += `${pad}- ${firstKey}: ${renderedFirst}\n`
+        }
+        for (const k of restKeys) {
+          const v = item[k]
+          if (typeof v === 'object' && v !== null) {
+            out += `${pad}  ${k}:${toSimpleYaml(v, indent + 4)}`
+          } else {
+            const rendered = typeof v === 'string' && (v.includes(':') || v.includes('#') || !v) ? JSON.stringify(v) : (v ?? 'null')
+            out += `${pad}  ${k}: ${rendered}\n`
+          }
+        }
+      } else {
+        out += `${pad}- ${toSimpleYaml(item, indent + 2)}`
+      }
+    }
+    return out
+  }
+  if (typeof val === 'object') {
+    const keys = Object.keys(val)
+    if (keys.length === 0) return '{}\n'
+    let out = indent === 0 ? '' : '\n'
+    for (const k of keys) {
+      const v = val[k]
+      if (typeof v === 'object' && v !== null) {
+        out += `${pad}${k}:${toSimpleYaml(v, indent + 2)}`
+      } else {
+        const rendered = typeof v === 'string' && (v.includes(':') || v.includes('#') || !v) ? JSON.stringify(v) : (v ?? 'null')
+        out += `${pad}${k}: ${rendered}\n`
+      }
+    }
+    return out
+  }
+  return String(val) + '\n'
+}
+
 function readConfigFromDir(dir) {
   const yamlFile = path.join(dir, 'config.yaml')
   const ymlFile = path.join(dir, 'config.yml')
@@ -90,22 +191,30 @@ function readConfigFromDir(dir) {
 }
 
 function saveConfigToDir(dir, data, preferredType = 'yaml') {
-  fs.mkdirSync(dir, { recursive: true })
+  try {
+    fs.mkdirSync(dir, { recursive: true })
+  } catch {}
   const yamlFile = path.join(dir, 'config.yaml')
   const jsonFile = path.join(dir, 'config.json')
 
-  if (preferredType === 'json' || (!fs.existsSync(yamlFile) && fs.existsSync(jsonFile))) {
+  // Always write JSON for fast node fallback
+  try {
     fs.writeFileSync(jsonFile, JSON.stringify(data, null, 2), 'utf8')
-    return
-  }
+  } catch {}
 
-  if (YAML) {
-    try {
+  // Always write YAML because Python Hermes CLI on host reads config.yaml
+  try {
+    if (YAML && typeof YAML.stringify === 'function') {
       fs.writeFileSync(yamlFile, YAML.stringify(data), 'utf8')
       return
-    } catch {}
+    }
+  } catch {}
+
+  try {
+    fs.writeFileSync(yamlFile, toSimpleYaml(data), 'utf8')
+  } catch (err) {
+    console.error('Failed to write config.yaml:', err)
   }
-  fs.writeFileSync(jsonFile, JSON.stringify(data, null, 2), 'utf8')
 }
 
 function readJsonFile(file, fallback = {}) {
@@ -465,6 +574,13 @@ if (sub === 'chat') {
     const cfg = readConfigFromDir(targetDir).data || {}
     const { modelName, apiKey, baseUrl } = resolveProviderAndKey(cfg)
 
+    if (!apiKey) {
+      console.log(
+        `[${profile} · ${modelName}] Perhatian: AI_API_KEY belum terkonfigurasi di file .env atau ~/.hermes/.env. Harap masukkan AI_API_KEY (misalnya token NVIDIA NIM nvapi-... atau OpenAI) di file .env server Anda agar saya dapat terhubung dan berpikir menggunakan model ${modelName}. (Pesan Anda: "${msg}")`
+      )
+      process.exit(0)
+    }
+
     if (apiKey && baseUrl) {
       try {
         const url = `${baseUrl.replace(/\/+$/, '')}/chat/completions`
@@ -497,13 +613,23 @@ if (sub === 'chat') {
         } else {
           const errText = await resp.text()
           console.error(`[LLM API Warning ${resp.status}]: ${errText}`)
+          let userReason = `Error HTTP ${resp.status} dari penyedia model (${baseUrl})`
+          if (resp.status === 401 || resp.status === 403) {
+            userReason = `Kredensial API Key ditolak (${resp.status}) oleh penyedia ${baseUrl}. Mohon periksa kembali AI_API_KEY Anda.`
+          } else if (resp.status === 429) {
+            userReason = `Rate limit atau kuota terlampaui (429) di penyedia ${baseUrl}.`
+          }
+          console.log(`[${profile} · ${modelName}] Maaf, permintaan ke model ${modelName} gagal: ${userReason}`)
+          process.exit(0)
         }
       } catch (err) {
         console.error(`[LLM Fetch Error]:`, err.message)
+        console.log(`[${profile} · ${modelName}] Gagal menghubungi endpoint LLM (${baseUrl}): ${err.message}`)
+        process.exit(0)
       }
     }
 
-    // Honest fallback stating the model configured
+    // Fallback if no reply was produced
     console.log(
       `[${profile} · ${modelName}] Halo! Saya siap membantu tugas Anda di kantor virtual Zelvira. Saya terhubung dengan model ${modelName}. (Pesan: "${msg}")`
     )

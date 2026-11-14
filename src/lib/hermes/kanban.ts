@@ -12,7 +12,7 @@
  */
 import { execFile } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { access, readFile, readdir, writeFile } from 'node:fs/promises'
+import { access, mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
@@ -691,6 +691,30 @@ export async function setProfileModel(
         `definisi provider "${qualified}" gagal terverifikasi di profil "${name}" — model.default/model.provider sudah tertulis tapi chat bisa gagal ("Unknown provider"); salin manual: hermes -p ${name} config set custom_providers '<json definisi ${customName} dari config global>'`,
       )
     }
+  }
+
+  // Direct sync to config.yaml on disk to guarantee Python Hermes CLI on host reads the new model
+  try {
+    const pDir = name === 'default' ? hermesHome() : path.join(hermesHome(), 'profiles', name)
+    const pYaml = path.join(pDir, 'config.yaml')
+    const YAML = await import('yaml').then((m) => m.default || m).catch(() => null)
+    if (YAML) {
+      await mkdir(pDir, { recursive: true })
+      let parsed: Record<string, unknown> = {}
+      if (existsSync(pYaml)) {
+        const raw = await readFile(pYaml, 'utf8').catch(() => '')
+        parsed = (YAML.parse(raw) as Record<string, unknown>) || {}
+      }
+      if (!parsed.model || typeof parsed.model !== 'object') parsed.model = {}
+      ;(parsed.model as Record<string, unknown>).default = model
+      if (qualified) (parsed.model as Record<string, unknown>).provider = qualified
+      if (customName && defJson) {
+        parsed.custom_providers = JSON.parse(defJson)
+      }
+      await writeFile(pYaml, YAML.stringify(parsed), 'utf8')
+    }
+  } catch (e) {
+    console.warn('Direct yaml update fallback:', e)
   }
 }
 
