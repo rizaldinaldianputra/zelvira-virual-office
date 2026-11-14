@@ -263,244 +263,6 @@ function createExteriorTotem(): THREE.Group {
   return g
 }
 
-/**
- * Giant outdoor commercial billboard / baliho in the front yard (halaman luar).
- * Features double-sided large vinyl banner face displaying Zelvira logo,
- * structural galvanized steel columns, cross bracing, catwalk, and overhead spotlights.
- */
-function createOutdoorBillboard(hour: number): THREE.Group {
-  const g = new THREE.Group()
-
-  // Concrete footing blocks at ground
-  for (const px of [-1.8, 1.8]) {
-    const foot = box(0.7, 0.25, 0.7, 0x334155, { rough: 0.85 })
-    foot.position.set(px, 0.125, 0)
-    g.add(foot)
-    // Heavy cylindrical galvanized steel column
-    const col = cyl(0.12, 0.14, 5.0, 0x1e293b, 12, 0.6)
-    col.position.set(px, 2.6, 0)
-    col.castShadow = true
-    g.add(col)
-  }
-
-  // Cross-truss diagonal bracing behind the billboard
-  const brace1 = box(3.8, 0.06, 0.06, 0x475569, { metal: 0.7, rough: 0.4 })
-  brace1.position.set(0, 3.2, -0.08)
-  brace1.rotation.z = 0.42
-  g.add(brace1)
-  const brace2 = box(3.8, 0.06, 0.06, 0x475569, { metal: 0.7, rough: 0.4 })
-  brace2.position.set(0, 3.2, -0.08)
-  brace2.rotation.z = -0.42
-  g.add(brace2)
-
-  // Main Billboard Frame (Double-sided horizontal billboard board)
-  const W = 6.2
-  const H = 2.1
-  const frame = box(W + 0.2, H + 0.2, 0.28, 0x070b14, { rough: 0.3, metal: 0.5 })
-  frame.position.set(0, 4.3, 0)
-  frame.castShadow = true
-  g.add(frame)
-
-  // Brushed gold perimeter trim
-  for (const sy of [-H / 2 - 0.08, H / 2 + 0.08]) {
-    const rimH = box(W + 0.26, 0.05, 0.3, 0xd4af37, { rough: 0.25, metal: 0.9 })
-    rimH.position.set(0, 4.3 + sy, 0)
-    g.add(rimH)
-  }
-  for (const sx of [-W / 2 - 0.08, W / 2 + 0.08]) {
-    const rimV = box(0.05, H + 0.22, 0.3, 0xd4af37, { rough: 0.25, metal: 0.9 })
-    rimV.position.set(sx, 4.3, 0)
-    g.add(rimV)
-  }
-
-  // Double-sided banner faces (South & North)
-  const logoTex = logoTexture()
-  const bannerMat = new THREE.MeshStandardMaterial({
-    map: logoTex,
-    transparent: true,
-    roughness: 0.1,
-    metalness: 0.05,
-    side: THREE.DoubleSide,
-    emissive: new THREE.Color(0xffffff),
-    emissiveMap: logoTex,
-    emissiveIntensity: 0.85,
-  })
-
-  // South face (faces street / cars)
-  const southLogo = new THREE.Mesh(new THREE.PlaneGeometry(5.4, 1.6), bannerMat)
-  southLogo.position.set(0, 4.3, 0.145)
-  southLogo.name = 'outdoor-billboard-logo-south'
-  g.add(southLogo)
-
-  // North face (faces building / visitors leaving)
-  const northLogo = new THREE.Mesh(new THREE.PlaneGeometry(5.4, 1.6), bannerMat)
-  northLogo.rotation.y = Math.PI
-  northLogo.position.set(0, 4.3, -0.145)
-  northLogo.name = 'outdoor-billboard-logo-north'
-  g.add(northLogo)
-
-  // Catwalk platform under the billboard
-  const catwalk = box(W + 0.4, 0.06, 0.65, 0x1e293b, { rough: 0.8, metal: 0.5 })
-  catwalk.position.set(0, 3.15, 0.35)
-  g.add(catwalk)
-  const rail = box(W + 0.4, 0.04, 0.04, 0x94a3b8, { metal: 0.8, rough: 0.3 })
-  rail.position.set(0, 3.55, 0.65)
-  g.add(rail)
-
-  // Top overhead spotlights illuminating the billboard at night
-  for (const lx of [-1.8, 1.8]) {
-    const arm = box(0.05, 0.05, 0.8, 0x64748b, { metal: 0.8 })
-    arm.position.set(lx, 5.5, 0.45)
-    g.add(arm)
-    const fixture = box(0.3, 0.1, 0.2, 0x0f172a, { rough: 0.4 })
-    fixture.position.set(lx, 5.45, 0.8)
-    g.add(fixture)
-
-    const spot = new THREE.PointLight(0xfff3d6, hour >= 18 || hour < 6 ? 1.0 : 0.2, 8)
-    spot.position.set(lx, 5.35, 0.85)
-    g.add(spot)
-  }
-
-  return g
-}
-
-/**
- * Modern outdoor standing banner (spanduk vertikal / roll-up banner) in the front yard
- * with weighted base, tension rods, and Zelvira branding.
- */
-function createStandingBanner(facing = 0): THREE.Group {
-  const g = new THREE.Group()
-  g.rotation.y = facing
-
-  // Heavy steel base plate
-  const base = box(1.3, 0.05, 0.55, 0x0f172a, { rough: 0.5, metal: 0.6 })
-  base.position.y = 0.025
-  g.add(base)
-
-  // Twin vertical poles
-  for (const sx of [-0.6, 0.6]) {
-    const pole = cyl(0.025, 0.025, 2.5, 0x94a3b8, 8, 0.8)
-    pole.position.set(sx, 1.25, 0)
-    g.add(pole)
-  }
-
-  // Cross horizontal bars (top & bottom tension clamps)
-  for (const sy of [0.18, 2.38]) {
-    const clamp = box(1.24, 0.04, 0.06, 0x0f172a, { metal: 0.7, rough: 0.4 })
-    clamp.position.set(0, sy, 0)
-    g.add(clamp)
-  }
-
-  // Vinyl banner canvas plate
-  const canvasBack = box(1.15, 2.16, 0.02, 0x070b14, { rough: 0.35 })
-  canvasBack.position.set(0, 1.28, 0)
-  g.add(canvasBack)
-
-  // Golden accent borders
-  for (const sy of [0.22, 2.34]) {
-    const trim = box(1.15, 0.015, 0.025, 0xd4af37, { metal: 0.9, rough: 0.2 })
-    trim.position.set(0, sy, 0)
-    g.add(trim)
-  }
-
-  // Logo on top portion of the standing banner (aspect ratio 3.38 : 1)
-  const tex = logoTexture()
-  const mat = new THREE.MeshStandardMaterial({
-    map: tex,
-    transparent: true,
-    roughness: 0.1,
-    metalness: 0.05,
-    side: THREE.DoubleSide,
-    emissive: new THREE.Color(0xffffff),
-    emissiveMap: tex,
-    emissiveIntensity: 0.85,
-  })
-  const logoFront = new THREE.Mesh(new THREE.PlaneGeometry(1.05, 0.31), mat)
-  logoFront.position.set(0, 1.85, 0.015)
-  logoFront.name = 'standing-banner-logo'
-  g.add(logoFront)
-
-  // Corporate subtitle / banner graphic on bottom half
-  const subPlate = box(0.95, 0.35, 0.005, 0x1e293b, { rough: 0.3 })
-  subPlate.position.set(0, 1.2, 0.015)
-  g.add(subPlate)
-
-  const subGold = box(0.7, 0.02, 0.008, 0xf59e0b, { emissive: 0xf59e0b, ei: 0.8 })
-  subGold.position.set(0, 1.35, 0.018)
-  g.add(subGold)
-
-  const subAccent = box(0.85, 0.01, 0.008, 0x38bdf8, { emissive: 0x38bdf8, ei: 0.7 })
-  subAccent.position.set(0, 1.05, 0.018)
-  g.add(subAccent)
-
-  return g
-}
-
-/**
- * Grand entrance portal / archway banner at the boundary between sidewalk and front yard.
- */
-function createPlazaEntrancePortal(): THREE.Group {
-  const g = new THREE.Group()
-
-  // Left & right gateway columns
-  for (const sx of [-3.8, 3.8]) {
-    const colBase = box(0.7, 0.3, 0.7, 0x1e293b, { rough: 0.85 })
-    colBase.position.set(sx, 0.15, 0)
-    g.add(colBase)
-    const pillar = box(0.5, 4.0, 0.5, 0x0f172a, { rough: 0.3, metal: 0.5 })
-    pillar.position.set(sx, 2.15, 0)
-    pillar.castShadow = true
-    g.add(pillar)
-
-    const accent = box(0.52, 0.08, 0.52, 0xd4af37, { metal: 0.9, rough: 0.2 })
-    accent.position.set(sx, 3.9, 0)
-    g.add(accent)
-  }
-
-  // Overhead cross beam spanning the portal
-  const beam = box(8.2, 0.45, 0.4, 0x0f172a, { rough: 0.35, metal: 0.4 })
-  beam.position.set(0, 4.15, 0)
-  g.add(beam)
-
-  // Suspended horizontal Welcome Banner Spanduk
-  const bannerBack = box(6.4, 1.35, 0.06, 0x070b14, { rough: 0.3 })
-  bannerBack.position.set(0, 3.1, 0)
-  g.add(bannerBack)
-
-  // Gold rim around banner
-  const rim = box(6.46, 1.41, 0.04, 0xd4af37, { metal: 0.9, rough: 0.2 })
-  rim.position.set(0, 3.1, -0.01)
-  g.add(rim)
-
-  // Double-sided logo on the archway banner
-  const tex = logoTexture()
-  const mat = new THREE.MeshStandardMaterial({
-    map: tex,
-    transparent: true,
-    roughness: 0.1,
-    metalness: 0.05,
-    side: THREE.DoubleSide,
-    emissive: new THREE.Color(0xffffff),
-    emissiveMap: tex,
-    emissiveIntensity: 0.9,
-  })
-
-  // Facing South (towards boulevard/cars approaching)
-  const faceS = new THREE.Mesh(new THREE.PlaneGeometry(4.8, 1.42), mat)
-  faceS.position.set(0, 3.1, 0.035)
-  faceS.name = 'portal-banner-logo-south'
-  g.add(faceS)
-
-  // Facing North (towards office visitors leaving)
-  const faceN = new THREE.Mesh(new THREE.PlaneGeometry(4.8, 1.42), mat)
-  faceN.rotation.y = Math.PI
-  faceN.position.set(0, 3.1, -0.035)
-  faceN.name = 'portal-banner-logo-north'
-  g.add(faceN)
-
-  return g
-}
-
 function bumpFrom(source: THREE.Texture, strength = 0.5): THREE.Texture {
   const src = source.image as HTMLCanvasElement
   const cv = document.createElement('canvas')
@@ -3001,77 +2763,21 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     nameFace.name = 'office-name-face'
     group.add(nameFace)
 
-    // -------------------------------------------------------------------------
-    // Grand Spanduk Banner Eksterior Gedung (Di Luar Office di Atas Pintu Masuk)
-    // -------------------------------------------------------------------------
-    const bW = 6.4
-    const bH = 1.85
-    const bGroup = new THREE.Group()
-    bGroup.position.set(DOOR.x, 4.65, HALF_D + 0.12)
-    bGroup.name = 'office-exterior-building-banner'
-
-    // Mounting plate with dark acrylic vinyl backing
-    const bannerPlate = box(bW + 0.2, bH + 0.2, 0.06, 0x070b14, { rough: 0.25, metal: 0.4 })
-    bannerPlate.name = 'office-logo-plate'
-    bannerPlate.castShadow = true
-    bGroup.add(bannerPlate)
-
-    // Brushed gold/copper perimeter frame
-    const bannerRim = box(bW + 0.26, bH + 0.26, 0.03, 0xd4af37, { rough: 0.25, metal: 0.9 })
-    bannerRim.position.z = -0.015
-    bGroup.add(bannerRim)
-
-    // Warm amber LED halo glow behind banner
-    const bannerHalo = box(bW + 0.12, bH + 0.12, 0.01, 0xf59e0b, { emissive: 0xf59e0b, ei: 0.85 })
-    bannerHalo.position.z = -0.025
-    bGroup.add(bannerHalo)
-
-    // Huge glowing Zelvira logo (aspect ratio 3.38 : 1)
-    const bMat = new THREE.MeshStandardMaterial({
+    // Emblem logo Zelvira di atas papan nama kantor
+    const logoPlate = box(2.4, 1.6, 0.1, 0x1e293b, { rough: 0.5, metal: 0.3 })
+    logoPlate.position.set(DOOR.x, 4.8, HALF_D + 0.08)
+    logoPlate.name = 'office-logo-plate'
+    group.add(logoPlate)
+    const logoMat = new THREE.MeshStandardMaterial({
       map: logoTexture(),
       transparent: true,
-      roughness: 0.1,
-      metalness: 0.05,
-      side: THREE.DoubleSide,
-      emissive: new THREE.Color(0xffffff),
-      emissiveMap: logoTexture(),
-      emissiveIntensity: 0.9,
+      roughness: 0.3,
+      metalness: 0.1,
     })
-    const bFace = new THREE.Mesh(new THREE.PlaneGeometry(5.6, 1.65), bMat)
-    bFace.position.z = 0.035
-    bFace.name = 'office-zelvira-logo-entrance'
-    bGroup.add(bFace)
-
-    // 3 overhead spotlights on curved brackets illuminating the exterior banner
-    for (const sx of [-2.0, 0, 2.0]) {
-      const arm = box(0.04, 0.04, 0.6, 0x64748b, { metal: 0.8 })
-      arm.position.set(sx, bH / 2 + 0.25, 0.3)
-      bGroup.add(arm)
-      const lampHead = box(0.24, 0.08, 0.16, 0x0f172a, { rough: 0.4 })
-      lampHead.position.set(sx, bH / 2 + 0.22, 0.6)
-      bGroup.add(lampHead)
-      const spot = new THREE.PointLight(0xfff3d6, hour >= 18 || hour < 6 ? 0.9 : 0.15, 6)
-      spot.position.set(sx, bH / 2 + 0.15, 0.62)
-      bGroup.add(spot)
-    }
-
-    group.add(bGroup)
-
-    // Front canopy fascia banner spanduk
-    const canopyBannerMat = new THREE.MeshStandardMaterial({
-      map: logoTexture(),
-      transparent: true,
-      roughness: 0.1,
-      metalness: 0.05,
-      side: THREE.DoubleSide,
-      emissive: new THREE.Color(0xffffff),
-      emissiveMap: logoTexture(),
-      emissiveIntensity: 0.85,
-    })
-    const canopyBannerFace = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 0.65), canopyBannerMat)
-    canopyBannerFace.position.set(DOOR.x, 3.1, HALF_D + 2.62)
-    canopyBannerFace.name = 'office-canopy-fascia-banner'
-    group.add(canopyBannerFace)
+    const logoFace = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 1.4), logoMat)
+    logoFace.position.set(DOOR.x, 4.8, HALF_D + 0.15)
+    logoFace.name = 'office-zelvira-logo-entrance'
+    group.add(logoFace)
     // canopy over the entrance, so the doorway reads from above
     const canopy = box(7.0, 0.22, 2.6, 0xe8eef2, { rough: 0.85 })
     canopy.position.set(DOOR.x, 3.1, HALF_D + 1.3)
@@ -3646,21 +3352,17 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     const pylonLogoMat = new THREE.MeshStandardMaterial({
       map: logoTexture(),
       transparent: true,
-      roughness: 0.1,
-      metalness: 0.05,
-      side: THREE.DoubleSide,
-      emissive: new THREE.Color(0xffffff),
-      emissiveMap: logoTexture(),
-      emissiveIntensity: 0.85,
+      roughness: 0.25,
+      metalness: 0.1,
     })
 
     // Front sign face (faces south toward street)
-    const frontLogo = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 0.54), pylonLogoMat)
+    const frontLogo = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.6), pylonLogoMat)
     frontLogo.position.set(0, 2.6, 0.235)
     pylon.add(frontLogo)
 
     // Back sign face (faces north toward building)
-    const backLogo = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 0.54), pylonLogoMat)
+    const backLogo = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.6), pylonLogoMat)
     backLogo.rotation.y = Math.PI
     backLogo.position.set(0, 2.6, -0.235)
     pylon.add(backLogo)
@@ -3671,32 +3373,6 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     pylon.add(uplight)
 
     streetGroup.add(pylon)
-
-    // -------------------------------------------------------------------------
-    // SPANDUK & BALIHO DI HALAMAN LUAR (FRONT YARD / PLAZA)
-    // -------------------------------------------------------------------------
-    // 1. Giant outdoor commercial billboard / baliho di halaman luar sebelah barat
-    const outdoorBillboard = createOutdoorBillboard(hour)
-    outdoorBillboard.position.set(-13.5, 0, HALF_D + 5.5)
-    outdoorBillboard.name = 'office-halaman-outdoor-billboard'
-    streetGroup.add(outdoorBillboard)
-
-    // 2. Standing banners spanduk berdiri di kiri dan kanan jalur masuk halaman
-    const standBannerLeft = createStandingBanner(0)
-    standBannerLeft.position.set(-3.8, 0, HALF_D + 4.5)
-    standBannerLeft.name = 'office-halaman-standing-banner-left'
-    streetGroup.add(standBannerLeft)
-
-    const standBannerRight = createStandingBanner(0)
-    standBannerRight.position.set(3.8, 0, HALF_D + 4.5)
-    standBannerRight.name = 'office-halaman-standing-banner-right'
-    streetGroup.add(standBannerRight)
-
-    // 3. Portal gerbang selamat datang dengan spanduk banner di depan trotoar
-    const entrancePortal = createPlazaEntrancePortal()
-    entrancePortal.position.set(0, 0, HALF_D + 8.2)
-    entrancePortal.name = 'office-halaman-entrance-portal-banner'
-    streetGroup.add(entrancePortal)
   }
 
   /* --------------------------------------------------------- living street */
