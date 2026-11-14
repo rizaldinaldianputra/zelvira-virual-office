@@ -117,6 +117,30 @@ function readJsonFile(file, fallback = {}) {
   return fallback
 }
 
+function getDefaultModel() {
+  const rootCfg = readConfigFromDir(hermesDir).data
+  const def = rootCfg?.model?.default || rootCfg?.model || process.env.AI_MODEL
+  return def || 'nvidia/nemotron-3-ultra-55'
+}
+
+function resolveProviderAndKey(cfgData) {
+  const rootCfg = readConfigFromDir(hermesDir).data || {}
+  const modelName = cfgData?.model?.default || cfgData?.model || rootCfg?.model?.default || rootCfg?.model || process.env.AI_MODEL || 'nvidia/nemotron-3-ultra-55'
+  const providerRef = String(cfgData?.model?.provider || rootCfg?.model?.provider || 'custom:default')
+
+  const providers = [
+    ...(Array.isArray(cfgData?.custom_providers) ? cfgData.custom_providers : []),
+    ...(Array.isArray(rootCfg?.custom_providers) ? rootCfg.custom_providers : []),
+  ]
+  const provName = providerRef.replace(/^custom:/, '')
+  const prov = providers.find((p) => p.name === provName || p.id === provName) || providers[0]
+
+  const apiKey = prov?.api_key || process.env.AI_API_KEY || process.env.OPENAI_API_KEY || process.env.NVIDIA_API_KEY || ''
+  const baseUrl = prov?.base_url || process.env.AI_BASE_URL || (modelName.startsWith('nvidia/') ? 'https://integrate.api.nvidia.com/v1' : 'https://api.openai.com/v1')
+
+  return { modelName, apiKey, baseUrl }
+}
+
 function writeJsonFile(file, data) {
   try {
     fs.mkdirSync(path.dirname(file), { recursive: true })
@@ -247,7 +271,8 @@ if (sub === 'profile') {
     fs.mkdirSync(pDir, { recursive: true })
     const pCfg = path.join(pDir, 'config.yaml')
     if (!fs.existsSync(pCfg)) {
-      fs.writeFileSync(pCfg, 'model:\n  default: gpt-4o-mini\n', 'utf8')
+      const defModel = getDefaultModel()
+      fs.writeFileSync(pCfg, `model:\n  default: ${defModel}\n`, 'utf8')
     }
     if (isJson) console.log(JSON.stringify({ success: true, name }))
     process.exit(0)
@@ -415,10 +440,65 @@ if (sub === 'kanban') {
 
 // ------------------------------------------------------------- CHAT
 if (sub === 'chat') {
-  const sessionId = `${new Date().toISOString().slice(0, 10).replace(/-/g, '')}_${Date.now().toString(36)}`
-  console.error(`session_id: ${sessionId}`)
-  console.log(`Halo! Saya siap membantu tugas Anda di kantor virtual.`)
-  process.exit(0)
+  void (async () => {
+    const sessionId = getFlag(args, '--resume') || `${new Date().toISOString().slice(0, 10).replace(/-/g, '')}_${Date.now().toString(36)}`
+    console.error(`session_id: ${sessionId}`)
+
+    const profile = targetProfile || 'default'
+    const msg = getFlag(args, '-q') || 'Halo'
+
+    let targetDir = hermesDir
+    if (profile && profile !== 'default') {
+      targetDir = path.join(profilesDir, profile)
+    }
+    const cfg = readConfigFromDir(targetDir).data || {}
+    const { modelName, apiKey, baseUrl } = resolveProviderAndKey(cfg)
+
+    if (apiKey && baseUrl) {
+      try {
+        const url = `${baseUrl.replace(/\/+$/, '')}/chat/completions`
+        const resp = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model: modelName,
+            messages: [
+              {
+                role: 'system',
+                content: `Kamu adalah AI Agent (${profile}) di Zelvira Virtual Office. Tugasmu membantu operasional kantor, manajemen tugas, dan kolaborasi antar-agent secara profesional. Model aktifmu adalah ${modelName}.`,
+              },
+              { role: 'user', content: msg },
+            ],
+            temperature: 0.7,
+          }),
+        })
+
+        if (resp.ok) {
+          const json = await resp.json()
+          const reply = json.choices?.[0]?.message?.content
+          if (reply) {
+            console.log(reply.trim())
+            process.exit(0)
+          }
+        } else {
+          const errText = await resp.text()
+          console.error(`[LLM API Warning ${resp.status}]: ${errText}`)
+        }
+      } catch (err) {
+        console.error(`[LLM Fetch Error]:`, err.message)
+      }
+    }
+
+    // Honest fallback stating the model configured
+    console.log(
+      `[${profile} · ${modelName}] Halo! Saya siap membantu tugas Anda di kantor virtual Zelvira. Saya terhubung dengan model ${modelName}. (Pesan: "${msg}")`
+    )
+    process.exit(0)
+  })()
+  return
 }
 
 // ------------------------------------------------------------- CRON

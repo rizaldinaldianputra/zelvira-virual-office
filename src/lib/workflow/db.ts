@@ -143,8 +143,6 @@ export function initWorkflowDb() {
 
 function seedTools() {
   const db = officeDb()
-  const count = (db.prepare('SELECT COUNT(*) as count FROM workflow_tools').get() as { count: number })?.count ?? 0
-  if (count > 0) return
 
   const defaultTools = [
     {
@@ -231,10 +229,22 @@ function seedTools() {
       requires_approval: 0,
       enabled: 1,
     },
+    {
+      id: 'tool_email_dispatch',
+      name: 'email_notification',
+      display_name: 'Email Dispatch & Notification',
+      description: 'Mengirimkan notifikasi email, surat pemberitahuan alur kerja, atau ringkasan tugas ke stakeholder internal Zelvira.',
+      category: 'communication',
+      input_schema: JSON.stringify({ to: 'string', subject: 'string', body: 'string' }),
+      output_schema: JSON.stringify({ sent: 'boolean', messageId: 'string', timestamp: 'string' }),
+      risk_level: 'low',
+      requires_approval: 0,
+      enabled: 1,
+    },
   ]
 
   const insert = db.prepare(`
-    INSERT INTO workflow_tools (id, name, display_name, description, category, input_schema, output_schema, risk_level, requires_approval, enabled)
+    INSERT OR IGNORE INTO workflow_tools (id, name, display_name, description, category, input_schema, output_schema, risk_level, requires_approval, enabled)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `)
 

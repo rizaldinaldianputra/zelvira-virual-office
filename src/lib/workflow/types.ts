@@ -31,6 +31,26 @@ export type ApprovalStatus = 'pending' | 'approved' | 'rejected'
 
 export type ToolRiskLevel = 'low' | 'medium' | 'high' | 'critical'
 
+export type CableAction = 'direct' | 'approval' | 'email' | 'condition'
+
+export type FlowiseEdge = {
+  id: string
+  source: string
+  target: string
+  action: CableAction
+  emailTo?: string
+  emailSubject?: string
+  condition?: string
+  label?: string
+}
+
+export type FlowiseCanvasConfig = {
+  edges?: FlowiseEdge[]
+  nodePositions?: Record<string, { x: number; y: number }>
+  zoom?: number
+  pan?: { x: number; y: number }
+}
+
 export type WorkflowStep = {
   id: string
   workflowId: string

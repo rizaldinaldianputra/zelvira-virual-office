@@ -530,6 +530,242 @@ export default function AgentSpawnPanel({
     )
   }
 
+  function renderAgentCard(r: Row, isOffice: boolean) {
+    const isSelected = editingAgent?.name === r.name
+    const roleLabel = r.role ? (ROLE_LABEL as Record<string, string>)[r.role] ?? r.role : 'Tanpa Role'
+    const divLabel = r.division ? (DIVISION_LABEL as Record<string, string>)[r.division] ?? null : null
+    const domainsStr = (r.domains || []).join(', ')
+
+    return (
+      <div
+        key={r.name}
+        className={`rounded-lg border transition-all ${
+          isSelected
+            ? 'border-indigo-500 bg-slate-900 shadow-xl'
+            : isOffice
+              ? 'border-slate-800 bg-slate-900/60 hover:border-slate-700 hover:bg-slate-900/90'
+              : 'border-slate-800/80 bg-slate-950/60 hover:border-slate-700 hover:bg-slate-900/40'
+        }`}
+      >
+        {/* COMPACT ROW: HANYA NAMA & SPESIALISASI */}
+        <div
+          className="p-3 cursor-pointer flex items-center justify-between gap-3 select-none"
+          onClick={() => {
+            if (isSelected) {
+              setEditingAgent(null)
+            } else {
+              startEdit(r)
+            }
+          }}
+          title="Klik untuk membuka detail form & konfigurasi agent ini"
+        >
+          <div className="flex flex-col gap-0.5 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-base">🤖</span>
+              <b className="text-sm text-slate-100 font-mono tracking-wide">{r.name}</b>
+              {divLabel && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-medium">
+                  {divLabel}
+                </span>
+              )}
+              {!r.profile && <span className="vp-tag-warn text-[10px]">tanpa profil</span>}
+            </div>
+
+            {/* SPESIALISASI AGENT: ROLE & DOMAINS */}
+            <div className="text-xs text-slate-400 flex items-center gap-1.5 flex-wrap pl-6">
+              <span className="text-indigo-300 font-medium">{roleLabel}</span>
+              {domainsStr && (
+                <>
+                  <span className="text-slate-600">·</span>
+                  <span className="text-slate-300 font-mono text-[11px] bg-slate-800/80 px-1.5 py-0.5 rounded">
+                    ⚡ {domainsStr}
+                  </span>
+                </>
+              )}
+              {r.model && (
+                <>
+                  <span className="text-slate-600">·</span>
+                  <span className="text-slate-400 text-[11px]">
+                    Model: <b className="text-cyan-400 font-mono">{r.model}</b>
+                  </span>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <span
+              className={`text-[10px] px-2 py-0.5 rounded font-semibold whitespace-nowrap ${
+                isOffice
+                  ? 'bg-emerald-950/70 border border-emerald-800/60 text-emerald-300'
+                  : 'bg-slate-800 text-slate-400 border border-slate-700'
+              }`}
+            >
+              {isOffice ? '🟢 Di Kantor' : '⚪ Di Luar'}
+            </span>
+            <span className="text-xs text-slate-400 font-mono">
+              {isSelected ? '▲' : '▼'}
+            </span>
+          </div>
+        </div>
+
+        {/* DETAIL FORM: HANYA TAMPIL KETIKA DIKLIK */}
+        {isSelected && (
+          <div className="p-4 border-t border-indigo-500/30 bg-slate-950/70 rounded-b-lg space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+              <span className="text-xs font-semibold text-indigo-300">
+                ⚙️ DETAIL & PENGATURAN AGENT: <span className="font-mono text-white">{r.name}</span>
+              </span>
+              <span className="text-[11px] text-slate-400">· {r.total} tugas kanban</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[11px] font-medium text-slate-400 mb-1">Divisi:</label>
+                <select
+                  className="vp-input w-full"
+                  value={editDivision}
+                  onChange={(e) => setEditDivision(e.target.value as AgentDivision)}
+                >
+                  {DIVISION_OPTIONS.map(([v, label]) => (
+                    <option key={v} value={v}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-medium text-slate-400 mb-1">Role / Jabatan:</label>
+                <select
+                  className="vp-input w-full"
+                  value={editRole}
+                  onChange={(e) => setEditRole(e.target.value as AgentRole)}
+                >
+                  {ROLE_OPTIONS.map(([v, label]) => (
+                    <option key={v} value={v}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-medium text-slate-400 mb-1">Spesialisasi / Keahlian (Domains):</label>
+              <input
+                className="vp-input w-full text-xs"
+                value={editDomains}
+                onChange={(e) => setEditDomains(e.target.value)}
+                placeholder="misal: react, nextjs, docker, rest-api"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-medium text-slate-400 mb-1">Deskripsi Job Desk / Tanggung Jawab:</label>
+              <textarea
+                className="vp-input w-full text-xs"
+                rows={2}
+                value={editDesc}
+                onChange={(e) => setEditDesc(e.target.value)}
+                placeholder="Rincian tanggung jawab dan tugas spesifik agent ini..."
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-medium text-slate-400 mb-1">Model AI Agent:</label>
+              <ModelPicker
+                value={editModel}
+                onChange={setEditModel}
+                models={models}
+                emptyLabel="Mengikuti Default Hermes"
+                title="Pilih model AI untuk agent ini"
+              />
+            </div>
+
+            {/* Badges & Permissions preview */}
+            <div className="pt-1">
+              <div className="text-[10px] text-slate-400 mb-1">Status & Batasan Izin:</div>
+              {badges(r)}
+              <div className="mt-1">{limits(r)}</div>
+            </div>
+
+            {/* ACTION BUTTONS */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-800">
+              <div className="flex items-center gap-2">
+                {r.profile && (
+                  <button
+                    type="button"
+                    className="vp-btn py-1 px-3 text-xs font-semibold"
+                    disabled={savingEdit}
+                    onClick={saveEdit}
+                  >
+                    {savingEdit ? 'Menyimpan…' : '💾 Simpan Perubahan'}
+                  </button>
+                )}
+                {isOffice ? (
+                  <button
+                    type="button"
+                    className="vp-btn text-xs py-1 px-3"
+                    disabled={busy === r.name}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      void act('hide', r.name)
+                    }}
+                    title="Keluarkan dari kantor virtual"
+                  >
+                    {busy === r.name ? '…' : '🚪 Sembunyikan'}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="vp-btn text-xs py-1 px-3"
+                    disabled={busy === r.name}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      void act('spawn', r.name)
+                    }}
+                    title="Panggil masuk ke kantor virtual"
+                  >
+                    {busy === r.name ? '…' : '🚪 Spawn'}
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                {r.profile && (
+                  <button
+                    type="button"
+                    className={`vp-btn vp-btn-danger text-xs py-1 px-3 ${confirmKill === r.name ? 'vp-btn-armed' : ''}`}
+                    disabled={busy === r.name}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (confirmKill !== r.name) {
+                        setConfirmKill(r.name)
+                        return
+                      }
+                      void act('kill', r.name)
+                    }}
+                    title="Hapus profil ini permanen"
+                  >
+                    {busy === r.name ? '…' : confirmKill === r.name ? 'Yakin Hapus?' : '🗑️ Hapus (Kill)'}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="vp-btn text-xs py-1 px-2.5 text-slate-400"
+                  onClick={() => setEditingAgent(null)}
+                >
+                  ✕ Tutup Form
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <FullPanel onClose={onClose} label="Agent" title="Agent" bodyClassName="vp-pad flex flex-col gap-3">
       {restartFor && <RestartNotice agentName={restartFor} onClose={() => setRestartFor(null)} />}
@@ -884,106 +1120,6 @@ export default function AgentSpawnPanel({
           <b>{rows.length}</b>
         </div>
 
-        {/* EDIT AGENT INLINE CARD */}
-        {editingAgent && (
-          <div className="rounded-lg border border-indigo-500 bg-slate-900 p-4 shadow-2xl space-y-3">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-              <h4 className="text-sm font-bold text-indigo-300 flex items-center gap-1.5">
-                <span>✏️</span> EDIT AGENT: <span className="font-mono text-white">{editingAgent.name}</span>
-              </h4>
-              <button
-                type="button"
-                className="text-slate-400 hover:text-white text-xs px-2 py-0.5 rounded bg-slate-800"
-                onClick={() => setEditingAgent(null)}
-              >
-                ✕ Tutup
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <div>
-                <label className="block text-[11px] font-medium text-slate-400 mb-1">Divisi:</label>
-                <select
-                  className="vp-input w-full"
-                  value={editDivision}
-                  onChange={(e) => setEditDivision(e.target.value as AgentDivision)}
-                >
-                  {DIVISION_OPTIONS.map(([v, label]) => (
-                    <option key={v} value={v}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-medium text-slate-400 mb-1">Role / Jabatan:</label>
-                <select
-                  className="vp-input w-full"
-                  value={editRole}
-                  onChange={(e) => setEditRole(e.target.value as AgentRole)}
-                >
-                  {ROLE_OPTIONS.map(([v, label]) => (
-                    <option key={v} value={v}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-medium text-slate-400 mb-1">Deskripsi Job Desk:</label>
-              <textarea
-                className="vp-input w-full text-xs"
-                rows={2}
-                value={editDesc}
-                onChange={(e) => setEditDesc(e.target.value)}
-                placeholder="Rincian tanggung jawab dan tugas spesifik agent ini..."
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-medium text-slate-400 mb-1">Keahlian (Domains, pisahkan koma):</label>
-              <input
-                className="vp-input w-full text-xs"
-                value={editDomains}
-                onChange={(e) => setEditDomains(e.target.value)}
-                placeholder="misal: react, nextjs, docker"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-medium text-slate-400 mb-1">Model AI Agent:</label>
-              <ModelPicker
-                value={editModel}
-                onChange={setEditModel}
-                models={models}
-                emptyLabel="Mengikuti Default Hermes"
-                title="Pilih model AI untuk agent ini"
-              />
-            </div>
-
-            <div className="flex gap-2 pt-2">
-              <button
-                type="button"
-                className="vp-btn flex-1 py-1.5 font-semibold text-xs"
-                disabled={savingEdit}
-                onClick={saveEdit}
-              >
-                {savingEdit ? 'Menyimpan…' : '💾 Simpan Perubahan'}
-              </button>
-              <button
-                type="button"
-                className="vp-btn vp-btn-rosy py-1.5 text-xs"
-                onClick={() => setEditingAgent(null)}
-              >
-                Batal
-              </button>
-            </div>
-          </div>
-        )}
-
         {/*
           Pemetaan domain→pemilik (dipakai office, bukan A2A). Domain tanpa
           pemilik = null → TAMPILKAN "tidak ada pemilik", jangan mengarang.
@@ -1019,100 +1155,7 @@ export default function AgentSpawnPanel({
 
         <div className="vp-sub">DI KANTOR ({inOffice.length})</div>
         <div className="flex flex-col gap-2">
-          {inOffice.map((r) => (
-            <div key={r.name} className="vp-agent-row flex flex-col gap-2 p-3 rounded-lg border border-slate-700 bg-slate-900/60">
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex flex-col gap-1">
-                  <div className="flex items-center gap-2">
-                    <b className="text-sm text-slate-100 font-mono">
-                      {r.name}
-                      {!r.profile && <span className="vp-tag-warn ml-2">tanpa profil</span>}
-                    </b>
-                    <i className="text-[11px] text-slate-400">· {r.total} tugas</i>
-                  </div>
-                  {badges(r)}
-                  {limits(r)}
-                </div>
-                <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-800/60 text-emerald-300 font-semibold whitespace-nowrap">
-                  🟢 Di Kantor
-                </span>
-              </div>
-
-              {/* Model Info Detail & Quick Picker */}
-              <div className="rounded bg-slate-950/50 border border-slate-800 p-2 flex flex-wrap items-center justify-between gap-2">
-                <div className="text-xs">
-                  <span className="text-slate-400">Model AI: </span>
-                  <b className="text-indigo-300 font-mono">{r.model || 'Bawaan Hermes'}</b>
-                </div>
-                {r.profile && (
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-48">
-                      <ModelPicker
-                        value={pick[r.name] ?? r.model ?? ''}
-                        onChange={(model) => setPick((p) => ({ ...p, [r.name]: model }))}
-                        models={models}
-                        disabled={busy === r.name}
-                        emptyLabel="bawaan Hermes"
-                        title="Model bawaan profil ini"
-                      />
-                    </div>
-                    <button
-                      className="vp-btn text-xs py-1 px-2"
-                      disabled={busy === r.name || (pick[r.name] ?? r.model ?? '') === (r.model ?? '')}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        void setModel(r.name, pick[r.name] ?? '')
-                      }}
-                    >
-                      {busy === r.name ? '…' : 'Set'}
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Action Buttons: Edit, Sembunyikan, Kill */}
-              <div className="flex flex-wrap items-center justify-end gap-2 pt-1 border-t border-slate-800/80">
-                {r.profile && (
-                  <button
-                    className="vp-btn text-xs py-1"
-                    disabled={busy === r.name}
-                    onClick={() => startEdit(r)}
-                    title="Edit rincian jabatan, model, job desk, atau keahlian agent ini"
-                  >
-                    ✏️ Edit
-                  </button>
-                )}
-                <button
-                  className="vp-btn text-xs py-1"
-                  disabled={busy === r.name}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    void act('hide', r.name)
-                  }}
-                  title="Keluarkan nama ini dari kantor tanpa menghapus apa pun"
-                >
-                  {busy === r.name ? '…' : 'Sembunyikan'}
-                </button>
-                {r.profile && (
-                  <button
-                    className={`vp-btn vp-btn-danger text-xs py-1 ${confirmKill === r.name ? 'vp-btn-armed' : ''}`}
-                    disabled={busy === r.name}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      if (confirmKill !== r.name) {
-                        setConfirmKill(r.name)
-                        return
-                      }
-                      void act('kill', r.name)
-                    }}
-                    title="Menghapus profil ini permanen, termasuk sesi dan kuncinya"
-                  >
-                    {busy === r.name ? '…' : confirmKill === r.name ? 'Yakin hapus?' : 'Kill'}
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
+          {inOffice.map((r) => renderAgentCard(r, true))}
           {confirmKill && (
             <div className="vp-cron-err">
               Menghapus <b>{confirmKill}</b> permanen — profil, sesi, memori, kunci,
@@ -1127,77 +1170,7 @@ export default function AgentSpawnPanel({
           <>
             <div className="vp-sub">DI LUAR ({out.length})</div>
             <div className="flex flex-col gap-2">
-              {out.map((r) => (
-                <div key={r.name} className="vp-agent-row off flex flex-col gap-2 p-3 rounded-lg border border-slate-800 bg-slate-900/40">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex flex-col gap-1">
-                      <div className="flex items-center gap-2">
-                        <b className="text-sm text-slate-300 font-mono">
-                          {r.name}
-                          {!r.profile && <span className="vp-tag-warn ml-2">tanpa profil</span>}
-                        </b>
-                        <i className="text-[11px] text-slate-500">
-                          · {r.reason === 'hidden'
-                            ? 'disembunyikan'
-                            : r.reason === 'no_profile'
-                              ? 'tanpa profil di disk'
-                              : 'tanpa tugas'}
-                        </i>
-                      </div>
-                      {badges(r)}
-                      {limits(r)}
-                    </div>
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400 font-semibold whitespace-nowrap">
-                      ⚪ Di Luar
-                    </span>
-                  </div>
-
-                  <div className="rounded bg-slate-950/40 border border-slate-800/80 p-2 flex flex-wrap items-center justify-between gap-2">
-                    <div className="text-xs">
-                      <span className="text-slate-400">Model AI: </span>
-                      <b className="text-indigo-300 font-mono">{r.model || 'Bawaan Hermes'}</b>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap items-center justify-end gap-2 pt-1 border-t border-slate-800/80">
-                    {r.profile && (
-                      <button
-                        className="vp-btn text-xs py-1"
-                        disabled={busy === r.name}
-                        onClick={() => startEdit(r)}
-                        title="Edit agent ini"
-                      >
-                        ✏️ Edit
-                      </button>
-                    )}
-                    <button
-                      className="vp-btn text-xs py-1"
-                      disabled={busy === r.name}
-                      onClick={() => act('spawn', r.name)}
-                      title="Agent masuk lewat pintu utama dan berjalan ke mejanya"
-                    >
-                      {busy === r.name ? '…' : 'Spawn'}
-                    </button>
-                    {r.profile && (
-                      <button
-                        className={`vp-btn vp-btn-danger text-xs py-1 ${confirmKill === r.name ? 'vp-btn-armed' : ''}`}
-                        disabled={busy === r.name}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          if (confirmKill !== r.name) {
-                            setConfirmKill(r.name)
-                            return
-                          }
-                          void act('kill', r.name)
-                        }}
-                        title="Menghapus profil ini permanen, termasuk sesi dan kuncinya"
-                      >
-                        {busy === r.name ? '…' : confirmKill === r.name ? 'Yakin hapus?' : 'Kill'}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
+              {out.map((r) => renderAgentCard(r, false))}
             </div>
           </>
         )}

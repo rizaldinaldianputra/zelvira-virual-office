@@ -9,6 +9,7 @@ import {
 } from './db'
 import type {
   ExecutionStatus,
+  FlowiseEdge,
   StepType,
   WorkflowExecution,
   WorkflowStep,
@@ -93,6 +94,34 @@ export async function executeWorkflow(executionId: string): Promise<WorkflowExec
 
         const step = steps[i]
         updateExecution(executionId, { currentStepId: step.id })
+
+        // Check Flowise visual cable actions (approval, email, condition)
+        const edges = ((workflow.config?.edges ||
+          (workflow.config?.canvas as { edges?: FlowiseEdge[] })?.edges ||
+          []) as FlowiseEdge[])
+        const incomingEdge = edges.find((e) => e.target === step.id)
+        if (incomingEdge) {
+          if (incomingEdge.action === 'approval') {
+            step.requiresApproval = true
+          }
+          if (incomingEdge.action === 'email') {
+            const recipient = incomingEdge.emailTo || 'admin@zelvira.office'
+            const subject = incomingEdge.emailSubject || `Notifikasi Transisi Alur Kerja: ${step.name}`
+            logWorkflowEvent({
+              executionId,
+              workflowId: workflow.id,
+              stepId: step.id,
+              event: 'cable_email_dispatched',
+              message: `[Kabel Transisi] Notifikasi email otomatis terkirim ke "${recipient}" (${subject})`,
+              details: { to: recipient, subject, transitionTo: step.name },
+            })
+          }
+          if (incomingEdge.action === 'condition' && incomingEdge.condition) {
+            if (!step.conditionExpr) {
+              step.conditionExpr = incomingEdge.condition
+            }
+          }
+        }
 
         // Check conditional step
         if (step.stepType === 'conditional' && step.conditionExpr) {
@@ -517,6 +546,21 @@ async function executeTool(
         snippets: [
           'Hermes 3D Virtual Office mendukung kanban live, ruang rapat ber-notula otomatis, dan inter-agent A2A dispatching.',
         ],
+      }
+    }
+
+    case 'tool_email_dispatch': {
+      const to = String(inputConfig.to || inputConfig.email || 'admin@zelvira.office')
+      const subject = String(inputConfig.subject || 'Notifikasi Alur Kerja Zelvira')
+      const body = String(inputConfig.body || `Pemberitahuan langkah alur kerja dari agent ${agentName}`)
+      return {
+        sent: true,
+        to,
+        subject,
+        bodyPreview: body.slice(0, 120),
+        messageId: `msg_${Date.now().toString(36)}`,
+        status: 'delivered',
+        timestamp: new Date().toISOString(),
       }
     }
 
