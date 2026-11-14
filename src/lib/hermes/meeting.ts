@@ -34,9 +34,13 @@ const TURN_TIMEOUT_MS = Number(process.env.MEETING_TURN_TIMEOUT_MS || 120_000)
 const RETRIES = Number(process.env.MEETING_TURN_RETRIES || 3)
 const BACKOFF_MS = Number(process.env.MEETING_TURN_BACKOFF_MS || 4000)
 const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), 'data')
-const AI_KEY = process.env.AI_API_KEY || ''
-const AI_URL = (process.env.AI_BASE_URL || '').replace(/\/$/, '')
-const AI_MODEL = process.env.AI_MODEL || 'gpt-4o-mini'
+
+export function getLlmConfig() {
+  const apiKey = process.env.AI_API_KEY || process.env.NVIDIA_API_KEY || process.env.OPENAI_API_KEY || ''
+  const baseUrl = (process.env.AI_BASE_URL || (process.env.NVIDIA_API_KEY ? 'https://integrate.api.nvidia.com/v1' : '')).replace(/\/$/, '')
+  const model = process.env.AI_MODEL || (process.env.NVIDIA_API_KEY ? 'nvidia/nemotron-3-ultra-55' : 'gpt-4o-mini')
+  return { apiKey, baseUrl, model }
+}
 
 /** One meeting at a time per server; a second start is rejected (409), not queued. */
 const meetings = new Map<string, Meeting>()
@@ -152,7 +156,8 @@ export async function readArchived(id: string): Promise<string | null> {
 }
 
 export function isConfigured(): boolean {
-  return Boolean(AI_URL && AI_KEY)
+  const { apiKey, baseUrl } = getLlmConfig()
+  return Boolean(baseUrl && apiKey)
 }
 
 type ChatChunk = {
@@ -238,13 +243,14 @@ function parseLeadingJson(text: string): unknown | null {
 }
 
 async function complete(system: string, user: string): Promise<string> {
-  if (!isConfigured()) {
+  const { apiKey, baseUrl, model } = getLlmConfig()
+  if (!isConfigured() || !apiKey || !baseUrl) {
     throw new Error(
       'No LLM configured. Set AI_BASE_URL and AI_API_KEY (see .env.example) to enable meetings.',
     )
   }
   const payload = JSON.stringify({
-    model: AI_MODEL,
+    model,
     messages: [
       { role: 'system', content: system },
       { role: 'user', content: user },
@@ -261,16 +267,27 @@ async function complete(system: string, user: string): Promise<string> {
     const ctrl = new AbortController()
     const timer = setTimeout(() => ctrl.abort(), TURN_TIMEOUT_MS)
     try {
-      const res = await fetch(`${AI_URL}/chat/completions`, {
+      const res = await fetch(`${baseUrl}/chat/completions`, {
         method: 'POST',
         signal: ctrl.signal,
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${AI_KEY}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
         body: payload,
       })
       if (!res.ok) {
         const text = await res.text().catch(() => '')
-        // 5xx / 429 are transient upstream errors; retry with backoff.
-        if (res.status >= 500 || res.status === 429) {
+        if (res.status === 401 || res.status === 403) {
+          throw new Error(`kredensial ditolak (${res.status}): API Key tidak valid atau kadaluarsa. Periksa AI_API_KEY di .env.local. Detail: ${text.slice(0, 160)}`)
+        }
+        if (res.status === 429) {
+          lastErr = new Error(`kena rate limit (429): batas kuota atau request rate API tercapai. Detail: ${text.slice(0, 160)}`)
+          if (attempt < RETRIES) {
+            await new Promise((r) => setTimeout(r, BACKOFF_MS * attempt))
+            continue
+          }
+          throw lastErr
+        }
+        // 5xx are transient upstream errors; retry with backoff.
+        if (res.status >= 500) {
           lastErr = new Error(`provider ${res.status}: ${text.slice(0, 160)}`)
           if (attempt < RETRIES) {
             await new Promise((r) => setTimeout(r, BACKOFF_MS * attempt))

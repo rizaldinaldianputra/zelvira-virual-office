@@ -79,6 +79,7 @@ export type CronJob = {
   id: string
   name: string
   prompt: string
+  agent?: string | null
   schedule: string
   /** 'cron' | 'interval' | … as reported by the CLI. */
   scheduleKind: string
@@ -111,6 +112,7 @@ type RawJob = {
   id: string
   name?: string
   prompt?: string
+  agent?: string | null
   schedule?: CronSchedule
   schedule_display?: string
   enabled?: boolean
@@ -130,10 +132,17 @@ type RawJob = {
 }
 
 function toJob(r: RawJob): CronJob {
+  let agent = r.agent ?? null
+  if (!agent && r.prompt) {
+    const m = r.prompt.match(/\[(?:Agent|Delegasi):\s*([a-zA-Z0-9_-]+)\]/i)
+    if (m) agent = m[1]
+  }
+
   return {
     id: r.id,
     name: r.name || '(tanpa nama)',
     prompt: r.prompt || '',
+    agent,
     schedule: r.schedule_display || r.schedule?.display || r.schedule?.expr || '?',
     scheduleKind: r.schedule?.kind || 'cron',
     enabled: r.enabled ?? false,
@@ -281,6 +290,7 @@ export type CreateInput = {
   schedule: string
   prompt?: string
   name?: string
+  agent?: string
   /** Start paused instead of live. */
   paused?: boolean
   /** Delivery target; omit to use the CLI default ('origin'). */
@@ -308,8 +318,13 @@ export async function createJob(input: CreateInput): Promise<string> {
     throw new Error('isi prompt atau script')
   }
 
+  const promptText = input.prompt?.trim() || ''
+  const finalPrompt = input.agent?.trim() && !promptText.startsWith('[Agent:')
+    ? `[Agent: ${input.agent.trim()}] ${promptText}`
+    : promptText
+
   const args = ['cron', 'create', schedule]
-  if (input.prompt?.trim()) args.push(input.prompt.trim())
+  if (finalPrompt) args.push(finalPrompt)
   if (input.name?.trim()) args.push('--name', input.name.trim())
   if (input.paused) args.push('--paused')
   if (input.deliver?.trim()) args.push('--deliver', input.deliver.trim())
@@ -317,7 +332,18 @@ export async function createJob(input: CreateInput): Promise<string> {
   if (input.noAgent) args.push('--no-agent')
   if (input.repeat && input.repeat > 0) args.push('--repeat', String(input.repeat))
 
-  const out = await cli(args, 60_000)
+  let out: string
+  try {
+    const withAgent = input.agent?.trim() ? [...args, '--agent', input.agent.trim()] : args
+    out = await cli(withAgent, 60_000)
+  } catch (err) {
+    const msg = (err as Error).message || ''
+    if (input.agent?.trim() && (msg.includes('--agent') || msg.includes('unrecognized'))) {
+      out = await cli(args, 60_000)
+    } else {
+      throw err
+    }
+  }
   // "Created job: c6e11310f4c3"
   const m = out.match(/Created job:\s*([0-9a-f]+)/i)
   if (m) return m[1]

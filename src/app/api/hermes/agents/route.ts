@@ -12,6 +12,7 @@ import {
   profileModel,
   purgeTasks,
   removeA2aPeer,
+  resetProfileModelToDefault,
   setProfileModel,
   tasksForAssignee,
 } from '@/lib/hermes/kanban'
@@ -408,6 +409,14 @@ export async function POST(req: NextRequest) {
         modelUpdated = model
       } catch (err) {
         console.error('Gagal update profile model:', err)
+        throw err
+      }
+    } else if (body?.useDefaultModel) {
+      try {
+        await resetProfileModelToDefault(clean)
+        modelUpdated = 'default'
+      } catch (err) {
+        console.error('Gagal reset model ke default:', err)
       }
     }
 

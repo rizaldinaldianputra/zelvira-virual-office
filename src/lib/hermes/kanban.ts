@@ -637,7 +637,25 @@ export async function setProfileModel(
       () => [] as RawProvider[],
     )
     const list = Array.isArray(global) ? global : []
-    const match = list.find((p) => String(p?.name || '').trim().toLowerCase() === customName)
+    let match = list.find((p) => String(p?.name || '').trim().toLowerCase() === customName)
+    if (!match || !String(match.base_url || '').trim()) {
+      if (customName === 'nvidia' || customName === 'default' || customName === 'hermes-default' || (model && model.toLowerCase().startsWith('nvidia/'))) {
+        const apiKey = process.env.AI_API_KEY || process.env.NVIDIA_API_KEY || process.env.OPENAI_API_KEY || ''
+        const baseUrl = process.env.AI_BASE_URL || (customName === 'nvidia' || (model && model.toLowerCase().startsWith('nvidia/')) ? 'https://integrate.api.nvidia.com/v1' : 'https://api.openai.com/v1')
+        const autoProv: RawProvider & { api_key?: string } = {
+          name: customName,
+          base_url: baseUrl,
+          api_key: apiKey,
+          model: model || 'nvidia/nemotron-3-ultra-55',
+          models: model ? { [model]: {} } : {},
+        }
+        list.push(autoProv)
+        try {
+          await hermesWrite(['config', 'set', 'custom_providers', JSON.stringify(list)])
+          match = autoProv
+        } catch {}
+      }
+    }
     if (!match || !String(match.base_url || '').trim()) {
       throw new Error(
         `provider "${qualified}" tidak dikenal — tidak ada definisi custom_providers bernama "${customName}" di config global; model profil "${name}" tidak diubah`,
@@ -824,6 +842,16 @@ export async function syncAllProfilesToDefault(
   }
 
   return { model, provider, profilesUpdated }
+}
+
+/**
+ * Reset model satu profil agent agar kembali mengikuti default Hermes.
+ */
+export async function resetProfileModelToDefault(name: string): Promise<void> {
+  const def = await getHermesDefaultModel()
+  if (def.model) {
+    await setProfileModel(name, def.model, def.provider)
+  }
 }
 
 /** Toolset CLI satu profil (`platform_toolsets.cli`).
@@ -1049,7 +1077,23 @@ export async function ensureProviderDef(name: string, provider: string): Promise
     () => [] as RawProvider[],
   )
   const list = Array.isArray(global) ? global : []
-  const match = list.find((p) => String(p?.name || '').trim().toLowerCase() === need)
+  let match = list.find((p) => String(p?.name || '').trim().toLowerCase() === need)
+  if (!match || !String(match.base_url || '').trim()) {
+    if (need === 'nvidia' || need === 'default' || need === 'hermes-default') {
+      const apiKey = process.env.AI_API_KEY || process.env.NVIDIA_API_KEY || process.env.OPENAI_API_KEY || ''
+      const baseUrl = process.env.AI_BASE_URL || (need === 'nvidia' ? 'https://integrate.api.nvidia.com/v1' : 'https://api.openai.com/v1')
+      const autoProv: RawProvider & { api_key?: string } = {
+        name: need,
+        base_url: baseUrl,
+        api_key: apiKey,
+      }
+      list.push(autoProv)
+      try {
+        await hermesWrite(['config', 'set', 'custom_providers', JSON.stringify(list)])
+        match = autoProv
+      } catch {}
+    }
+  }
   if (!match || !String(match.base_url || '').trim()) {
     throw new Error(
       `provider "${provider.trim()}" tidak dikenal — tidak ada definisi custom_providers bernama "${need}" di config global; profil "${name}" tidak diubah`,

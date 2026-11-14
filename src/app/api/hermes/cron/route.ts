@@ -92,6 +92,7 @@ export async function POST(req: NextRequest) {
         prompt,
         script,
         name: body?.name ? String(body.name) : undefined,
+        agent: body?.agent ? String(body.agent).trim() : undefined,
         // Default to paused: a job created live can fire before anyone has read
         // it, and the UI offers "langsung aktif" explicitly for when that is wanted.
         paused: body?.paused !== false,

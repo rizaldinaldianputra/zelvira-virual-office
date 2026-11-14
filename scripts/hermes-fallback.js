@@ -212,6 +212,17 @@ if (sub === 'config') {
         cur = cur ? cur[p] : undefined
       }
       out = cur !== undefined ? cur : (key === 'custom_providers' ? [] : null)
+      if (key === 'custom_providers' && (!Array.isArray(out) || out.length === 0)) {
+        out = [
+          {
+            name: 'nvidia',
+            base_url: process.env.AI_BASE_URL || 'https://integrate.api.nvidia.com/v1',
+            api_key: process.env.AI_API_KEY || process.env.NVIDIA_API_KEY || '',
+            model: 'nvidia/nemotron-3-ultra-55',
+            models: { 'nvidia/nemotron-3-ultra-55': {} },
+          },
+        ]
+      }
     }
 
     if (isJson) {
@@ -511,6 +522,7 @@ if (sub === 'cron') {
     const schedule = cleanCmd[2] || '0 9 * * *'
     const prompt = cleanCmd[3] && !cleanCmd[3].startsWith('--') ? cleanCmd[3] : ''
     const name = getFlag(cleanCmd, '--name') || 'Tugas Terjadwal'
+    const agent = getFlag(cleanCmd, '--agent') || null
     const isPaused = cleanCmd.includes('--paused')
     const deliver = getFlag(cleanCmd, '--deliver') || 'origin'
     const script = getFlag(cleanCmd, '--script') || null
@@ -521,6 +533,7 @@ if (sub === 'cron') {
       id,
       name,
       prompt,
+      agent,
       schedule: { kind: 'cron', expr: schedule, display: schedule },
       schedule_display: schedule,
       enabled: !isPaused,

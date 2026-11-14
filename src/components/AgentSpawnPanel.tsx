@@ -130,6 +130,7 @@ export default function AgentSpawnPanel({
   const [soulPreview, setSoulPreview] = useState<string | null>(null)
   const [divFilter, setDivFilter] = useState<'all' | AgentDivision>('all')
   const [activeTab, setActiveTab] = useState<'create' | 'list'>('create')
+  const [showStats, setShowStats] = useState(false)
 
   // Edit agent state
   const [editingAgent, setEditingAgent] = useState<Row | null>(null)
@@ -168,6 +169,7 @@ export default function AgentSpawnPanel({
           domains: editDomains.trim(),
           model: editModel || undefined,
           provider: editModel ? hit?.provider : undefined,
+          useDefaultModel: !editModel,
         }),
       })
       if (!res.ok) throw new Error(res.error || 'gagal memperbarui profil agent')
@@ -1111,32 +1113,56 @@ export default function AgentSpawnPanel({
     ) : (
       <>
         {/* ======================================================== DAFTAR AGENT (LIST) */}
-        <div className="vp-kv">
-          <span>di kantor</span>
-          <b>{inOffice.length}</b>
-        </div>
-        <div className="vp-kv">
-          <span>profil tersedia</span>
-          <b>{rows.length}</b>
-        </div>
+        {/* Ringkasan status kantor & profil (Buka / Tutup) */}
+        <div className="rounded-lg border border-slate-800 bg-slate-900/60 overflow-hidden mb-1">
+          <button
+            type="button"
+            onClick={() => setShowStats(!showStats)}
+            className="w-full flex items-center justify-between p-2.5 text-xs text-slate-300 hover:text-white hover:bg-slate-800/50 transition-colors"
+            title="Klik untuk membuka/menutup ringkasan status kantor"
+          >
+            <span className="flex items-center gap-2 font-semibold">
+              <span>📊</span>
+              <span>Ringkasan Status Kantor</span>
+              <span className="text-[11px] text-slate-400 font-normal">
+                ({inOffice.length} di kantor · {rows.length} profil)
+              </span>
+            </span>
+            <span className="text-[11px] text-indigo-400 font-medium">
+              {showStats ? 'Tutup ▲' : 'Buka ▼'}
+            </span>
+          </button>
+          {showStats && (
+            <div className="p-3 border-t border-slate-800/80 bg-slate-950/40 space-y-2">
+              <div className="vp-kv">
+                <span>di kantor</span>
+                <b>{inOffice.length}</b>
+              </div>
+              <div className="vp-kv">
+                <span>profil tersedia</span>
+                <b>{rows.length}</b>
+              </div>
 
-        {/*
-          Pemetaan domain→pemilik (dipakai office, bukan A2A). Domain tanpa
-          pemilik = null → TAMPILKAN "tidak ada pemilik", jangan mengarang.
-        */}
-        {Object.keys(domainOwners).length > 0 && (
-          <>
-            <div className="vp-sub">SIAPA PEGANG APA (OFFICE, BUKAN A2A)</div>
-            <div className="flex flex-col gap-1">
-              {Object.entries(domainOwners).map(([d, owner]) => (
-                <div key={d} className="vp-kv">
-                  <span>{d}</span>
-                  <b>{owner ?? 'tidak ada pemilik'}</b>
-                </div>
-              ))}
+              {/*
+                Pemetaan domain→pemilik (dipakai office, bukan A2A). Domain tanpa
+                pemilik = null → TAMPILKAN "tidak ada pemilik", jangan mengarang.
+              */}
+              {Object.keys(domainOwners).length > 0 && (
+                <>
+                  <div className="vp-sub mt-2">SIAPA PEGANG APA (OFFICE, BUKAN A2A)</div>
+                  <div className="flex flex-col gap-1">
+                    {Object.entries(domainOwners).map(([d, owner]) => (
+                      <div key={d} className="vp-kv">
+                        <span>{d}</span>
+                        <b>{owner ?? 'tidak ada pemilik'}</b>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
-          </>
-        )}
+          )}
+        </div>
 
         <div className="vp-sub">FILTER DIVISI</div>
         <select

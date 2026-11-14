@@ -39,6 +39,7 @@ type Job = {
   skills: string[]
   repeatTimes: number | null
   repeatCompleted: number
+  agent?: string | null
 }
 
 type ScheduleType = 'daily' | 'workdays' | 'weekly' | 'hourly' | 'monthly' | 'custom'
@@ -173,6 +174,8 @@ export default function CronPanel({
   const [schedule, setSchedule] = useState('0 9 * * *')
   const [prompt, setPrompt] = useState('')
   const [name, setName] = useState('')
+  const [agent, setAgent] = useState('')
+  const [agentList, setAgentList] = useState<{ name: string; role?: string; division?: string }[]>([])
   const [liveNow, setLiveNow] = useState(false)
 
   // schedule datetime picker state
@@ -182,6 +185,46 @@ export default function CronPanel({
   const [selectedDays, setSelectedDays] = useState<number[]>([1, 2, 3, 4, 5])
   const [hourInterval, setHourInterval] = useState('2')
   const [monthDay, setMonthDay] = useState('1')
+
+  function applyPreset(kind: 'instagram' | 'backup' | 'standup' | 'seo') {
+    if (kind === 'instagram') {
+      setName('Auto Posting Instagram Zelvira')
+      const targetAgent = agentList.find((a) => a.name.includes('content'))?.name || 'contentcreator'
+      setAgent(targetAgent)
+      setSchedMode('picker')
+      setSchedType('daily')
+      setTimeVal('21:00')
+      setSchedule('0 21 * * *')
+      setPrompt('Buatkan dan jadwalkan postingan Instagram Zelvira hari ini: siapkan konsep caption menarik dengan Call to Action (CTA), visual copy, serta rekomendasi 15-20 hashtag tertarget.')
+    } else if (kind === 'backup') {
+      setName('Backup Database & Health Check')
+      const targetAgent = agentList.find((a) => a.name.includes('devops') || a.name.includes('backend'))?.name || 'devops'
+      setAgent(targetAgent)
+      setSchedMode('picker')
+      setSchedType('daily')
+      setTimeVal('21:00')
+      setSchedule('0 21 * * *')
+      setPrompt('Lakukan snapshot backup database Zelvira Virtual Office harian, verifikasi integritas backup dump, periksa pemakaian kapasitas storage disk, dan laporkan status log kesehatan server.')
+    } else if (kind === 'standup') {
+      setName('Morning Standup & Task Briefing')
+      const targetAgent = agentList.find((a) => a.name.includes('manager') || a.name.includes('orchestrator') || a.name.includes('ceo'))?.name || 'manager'
+      setAgent(targetAgent)
+      setSchedMode('picker')
+      setSchedType('workdays')
+      setTimeVal('08:00')
+      setSchedule('0 8 * * 1-5')
+      setPrompt('Tinjau semua tugas di board kanban virtual office: identifikasi tugas yang sedang berjalan (in-progress), rangkum hambatan (blocked), dan susun agenda prioritas briefing kerja hari ini.')
+    } else if (kind === 'seo') {
+      setName('SEO & Traffic Keyword Audit')
+      const targetAgent = agentList.find((a) => a.name.includes('seo'))?.name || 'seo'
+      setAgent(targetAgent)
+      setSchedMode('picker')
+      setSchedType('daily')
+      setTimeVal('12:00')
+      setSchedule('0 12 * * *')
+      setPrompt('Audit peringkat keyword pencarian Google situs Zelvira hari ini: analisa pergerakan traffic organik, identifikasi kata kunci potensial, dan berikan rekomendasi perbaikan konten SEO.')
+    }
+  }
 
   useEffect(() => {
     if (schedMode === 'picker') {
@@ -194,16 +237,21 @@ export default function CronPanel({
     setLoading(true)
     setErr(null)
     try {
-      const res = await fetchJson<{ jobs?: Job[]; runs?: Run[]; jobsFailure?: string }>(
-        '/api/hermes/cron',
-        {
+      const [cronRes, agentRes] = await Promise.all([
+        fetchJson<{ jobs?: Job[]; runs?: Run[]; jobsFailure?: string }>('/api/hermes/cron', {
           cache: 'no-store',
-        },
-      )
-      if (!res.ok) throw new Error(res.error || 'gagal memuat cron')
-      setJobs(res.data?.jobs || [])
-      setRuns(res.data?.runs || [])
-      setJobsFailure(res.data?.jobsFailure || null)
+        }),
+        fetchJson<{ available?: { name: string; role?: string; division?: string }[] }>('/api/hermes/agents', {
+          cache: 'no-store',
+        }).catch(() => null),
+      ])
+      if (!cronRes.ok) throw new Error(cronRes.error || 'gagal memuat cron')
+      setJobs(cronRes.data?.jobs || [])
+      setRuns(cronRes.data?.runs || [])
+      setJobsFailure(cronRes.data?.jobsFailure || null)
+      if (agentRes?.ok && Array.isArray(agentRes.data?.available)) {
+        setAgentList(agentRes.data.available)
+      }
     } catch (e) {
       setErr((e as Error).message)
     } finally {
@@ -282,6 +330,7 @@ export default function CronPanel({
           schedule,
           prompt,
           name,
+          agent: agent || undefined,
           paused: !liveNow,
         }),
       })
@@ -292,9 +341,10 @@ export default function CronPanel({
           ? `job dibuat dan langsung aktif (${newId})`
           : `job dibuat dalam keadaan pause (${newId}) — aktifkan kalau sudah benar`,
       )
-      setSchedule('')
+      setSchedule('0 9 * * *')
       setPrompt('')
       setName('')
+      setAgent('')
       setLiveNow(false)
       await load()
       setScreen('list')
@@ -344,16 +394,45 @@ export default function CronPanel({
     <FullPanel
       onClose={onClose}
       label="Cron"
-      title={screen === 'new' ? 'Job baru' : 'Cron'}
+      title={screen === 'new' ? 'Job Baru (Delegasi Agent)' : 'Cronjob AI'}
       actions={
         screen === 'new' && (
           <button className="vp-chip-btn" onClick={() => setScreen('list')}>
-            ← Kembali
+            ← Kembali ke Daftar
           </button>
         )
       }
       bodyClassName="vp-pad flex flex-col gap-3"
     >
+      {/* ======================================================== TABBAR NAVIGASI CRONJOB */}
+      <div className="flex border-b border-slate-700 bg-slate-900/90 -mx-4 -mt-3 px-4 pt-2 gap-2">
+        <button
+          type="button"
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${
+            screen === 'list'
+              ? 'border-indigo-500 text-indigo-300 bg-indigo-950/40 shadow-sm'
+              : 'border-transparent text-slate-400 hover:text-slate-200'
+          }`}
+          onClick={() => setScreen('list')}
+        >
+          <span>📋</span> Cronjob Aktif & Terjadwal
+          <span className="ml-1 rounded-full bg-slate-800 px-2 py-0.5 text-[10px] text-slate-300 border border-slate-700">
+            {jobs.length}
+          </span>
+        </button>
+        <button
+          type="button"
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${
+            screen === 'new'
+              ? 'border-indigo-500 text-indigo-300 bg-indigo-950/40 shadow-sm'
+              : 'border-transparent text-slate-400 hover:text-slate-200'
+          }`}
+          onClick={() => setScreen('new')}
+        >
+          <span>➕</span> Buat Cronjob Baru (Delegasi Agent)
+        </button>
+      </div>
+
       {err && <div className="vp-err">{err}</div>}
       {note && <div className="vp-ok">{note}</div>}
       {loading && <div className="vp-muted">memuat…</div>}
@@ -362,19 +441,32 @@ export default function CronPanel({
 
       {screen === 'list' ? (
         <>
-          <button className="vp-btn" onClick={() => setScreen('new')}>
-            + Buat job
-          </button>
-          <button className="vp-btn vp-btn-rosy" disabled={loading} onClick={load}>
-            Segarkan
-          </button>
+          <div className="flex items-center justify-between gap-2">
+            <button className="vp-btn flex-1" onClick={() => setScreen('new')}>
+              + Buat Jadwal Baru (Delegasi Agent)
+            </button>
+            <button className="vp-btn vp-btn-rosy" disabled={loading} onClick={load}>
+              Segarkan
+            </button>
+          </div>
 
           <div className="vp-sub">JOB ({jobs.length})</div>
           <div className="flex flex-col gap-2">
             {jobs.map((j) => (
               <div key={j.id} className={`vp-cron-card ${j.enabled ? 'on' : ''}`}>
                 <div className="vp-cron-top">
-                  <b>{j.name}</b>
+                  <div className="flex items-center gap-2 flex-wrap min-w-0">
+                    <b className="text-slate-100">{j.name}</b>
+                    {j.agent ? (
+                      <span className="text-[10px] px-2 py-0.5 rounded bg-indigo-950/90 text-indigo-300 border border-indigo-700/60 font-semibold flex items-center gap-1 shadow-sm" title={`Didelegasikan ke agent ${j.agent}`}>
+                        <span>🤖</span> Delegasi: {j.agent}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 font-normal">
+                        (umum)
+                      </span>
+                    )}
+                  </div>
                   <span className={`vp-cron-state ${j.enabled ? 'on' : 'off'}`}>{j.state}</span>
                 </div>
                 <i className="vp-cron-sched">{j.schedule}</i>
@@ -469,6 +561,128 @@ export default function CronPanel({
         </>
       ) : (
         <div className="flex flex-col gap-3">
+          {/* ---------------- 1-KLIK PRESET TEMPLATE ---------------- */}
+          <div className="rounded-lg border border-indigo-900/60 bg-indigo-950/30 p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-indigo-300 flex items-center gap-1.5 uppercase tracking-wide">
+                <span>⚡</span> PRESET TUGAS RUTIN OTOMATIS (1-KLIK)
+              </span>
+              <span className="text-[10px] text-slate-400">Klik untuk mengisi form otomatis</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => applyPreset('instagram')}
+                className="p-2.5 rounded-lg border border-slate-700 bg-slate-900/80 hover:bg-slate-800 hover:border-pink-500/60 text-left transition-all group shadow-sm"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-pink-300 flex items-center gap-1.5">
+                    <span>📱</span> Auto Posting Instagram
+                  </span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-pink-950/80 text-pink-300 border border-pink-800/60 font-mono">
+                    21:00 Tiap Hari
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+                  Delegasi ke agent <b>contentcreator</b>: Buatkan tema visual, draft caption dengan CTA, dan hashtag postingan jam 9 malam.
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => applyPreset('backup')}
+                className="p-2.5 rounded-lg border border-slate-700 bg-slate-900/80 hover:bg-slate-800 hover:border-emerald-500/60 text-left transition-all group shadow-sm"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
+                    <span>💾</span> Backup Database & Health Check
+                  </span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-950/80 text-emerald-300 border border-emerald-800/60 font-mono">
+                    21:00 Tiap Hari
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+                  Delegasi ke agent <b>devops</b>: Backup snapshot PostgreSQL & verifikasi kesehatan server jam 9 malam.
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => applyPreset('standup')}
+                className="p-2.5 rounded-lg border border-slate-700 bg-slate-900/80 hover:bg-slate-800 hover:border-amber-500/60 text-left transition-all group shadow-sm"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                    <span>📊</span> Morning Standup Briefing
+                  </span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-950/80 text-amber-300 border border-amber-800/60 font-mono">
+                    08:00 Hari Kerja
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+                  Delegasi ke agent <b>manager</b>: Rekap task in-progress, buka hambatan tugas, dan siapkan agenda briefing pagi.
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => applyPreset('seo')}
+                className="p-2.5 rounded-lg border border-slate-700 bg-slate-900/80 hover:bg-slate-800 hover:border-blue-500/60 text-left transition-all group shadow-sm"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-blue-300 flex items-center gap-1.5">
+                    <span>🔍</span> SEO & Traffic Audit
+                  </span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-950/80 text-blue-300 border border-blue-800/60 font-mono">
+                    12:00 Tiap Hari
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+                  Delegasi ke agent <b>seo</b>: Monitor peringkat keyword pencarian dan analisa lalu lintas organik jam 12 siang.
+                </p>
+              </button>
+            </div>
+          </div>
+
+          {/* ---------------- DELEGASI AGENT ---------------- */}
+          <div className="rounded-lg border border-slate-700 bg-slate-900/70 p-3 space-y-2">
+            <label className="vp-sub flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5 uppercase">
+                <span>🤖</span> DELEGASIKAN KE AI AGENT
+              </span>
+              <span className="text-[10px] text-indigo-400 font-normal">
+                {agent ? `Terpilih: @${agent}` : 'Belum memilih agent'}
+              </span>
+            </label>
+            <div className="flex items-center gap-2">
+              <select
+                className="vp-input w-full font-medium"
+                value={agent}
+                onChange={(e) => setAgent(e.target.value)}
+              >
+                <option value="">— Tanpa Delegasi Khusus (Umum / Default Hermes) —</option>
+                {agentList.map((a) => (
+                  <option key={a.name} value={a.name}>
+                    🤖 {a.name} {a.role ? `(${a.role}${a.division ? ` · ${a.division}` : ''})` : ''}
+                  </option>
+                ))}
+              </select>
+              {agent && (
+                <button
+                  type="button"
+                  className="vp-btn text-xs px-2.5 py-1 text-slate-400 hover:text-white"
+                  onClick={() => setAgent('')}
+                  title="Batalkan pilihan agent (kembali ke umum)"
+                >
+                  ✕ Reset
+                </button>
+              )}
+            </div>
+            <span className="text-[10px] text-slate-400 block mt-0.5">
+              Tugas cronjob akan dieksekusi atas nama agent ini, menggunakan kepribadian (SOUL.md), memori profil, dan toolset terkait.
+            </span>
+          </div>
+
           <div className="flex items-center justify-between border-b border-slate-700 pb-2">
             <span className="text-xs font-bold uppercase tracking-wider text-indigo-300 flex items-center gap-1.5">
               <span>⏰</span> PENGATUR WAKTU & JADWAL (CRON)
@@ -667,11 +881,11 @@ export default function CronPanel({
           </label>
 
           <button
-            className="vp-btn"
+            className="vp-btn py-2.5 font-bold text-sm shadow-md flex items-center justify-center gap-2"
             disabled={busy === 'create' || !schedule.trim() || !prompt.trim()}
             onClick={create}
           >
-            {busy === 'create' ? 'Membuat…' : 'Buat job'}
+            {busy === 'create' ? 'Membuat Jadwal Cronjob…' : '✨ Buat Jadwal Cronjob Baru'}
           </button>
         </div>
       )}
