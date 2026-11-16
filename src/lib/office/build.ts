@@ -675,6 +675,8 @@ export type OfficeProps = {
 }
 
 export function buildOffice(scene: THREE.Scene, hour: number) {
+  const LEVEL2_Y = LEVEL_H * 2 // 6.8 m (lantai 3)
+  const LEVEL3_Y = LEVEL_H * 3 // 10.2 m (mahkota atap)
   const group = new THREE.Group()
   scene.add(group)
   /** The BBQ smoke puffs and fire, collected so `animateBbq` can drive them. */
@@ -1533,6 +1535,86 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
       end.position.set(gx, LEVEL_H + 0.5, -9)
       group.add(end)
     }
+
+    // Dinding Tirai Kaca Arsitektural Penuh Lantai 1 (Cermis Jendela Floor-to-Ceiling di z = -9.0)
+    // Menghubungkan balustrade (y = LEVEL_H + 1.0) ke plafon/lantai 2 (y = LEVEL_H + LEVEL_H = LEVEL2_Y)
+    const facadeH = LEVEL_H - 1.0 // 2.4 m
+    for (const [x1, x2] of runs) {
+      const w = x2 - x1
+      if (w <= 0.05) continue
+      const mid = (x1 + x2) / 2
+
+      // Kaca arsitektural jernih transparan
+      const windowGlass = new THREE.Mesh(
+        new THREE.BoxGeometry(w, facadeH, 0.06),
+        new THREE.MeshPhysicalMaterial({
+          color: 0x90cdf4,
+          roughness: 0.05,
+          metalness: 0.1,
+          transmission: 0.88,
+          thickness: 0.05,
+          transparent: true,
+          opacity: 0.48,
+        }),
+      )
+      windowGlass.position.set(mid, LEVEL_H + 1.0 + facadeH / 2, -9)
+      windowGlass.raycast = () => {}
+      group.add(windowGlass)
+
+      // Balok spandrel / transom atas di bawah lantai 2
+      const topBeam = box(w, 0.2, 0.16, 0x1e293b, { metal: 0.7, rough: 0.3 })
+      topBeam.position.set(mid, LEVEL2_Y - 0.1, -9)
+      topBeam.raycast = () => {}
+      group.add(topBeam)
+
+      // Kusen & mullion vertikal aluminium arsitektural tiap ~3.5 m
+      const mullionCount = Math.max(1, Math.round(w / 3.5))
+      const step = w / mullionCount
+      for (let i = 0; i <= mullionCount; i++) {
+        const mx = x1 + i * step
+        const mullion = box(0.08, facadeH, 0.1, 0x0f172a, { metal: 0.8, rough: 0.25 })
+        mullion.position.set(mx, LEVEL_H + 1.0 + facadeH / 2, -9)
+        mullion.raycast = () => {}
+        group.add(mullion)
+      }
+
+      // Transom horizontal tengah
+      const midTransom = box(w, 0.06, 0.08, 0x1e293b, { metal: 0.7, rough: 0.3 })
+      midTransom.position.set(mid, LEVEL_H + 1.0 + facadeH * 0.55, -9)
+      midTransom.raycast = () => {}
+      group.add(midTransom)
+    }
+
+    // Portal Pintu Masuk Kaca Eksekutif di Puncak Tangga (antara gap.x1 dan gap.x2)
+    const portalW = gap.x2 - gap.x1
+    const portalMidX = (gap.x1 + gap.x2) / 2
+    // Balok kusen atas pintu masuk
+    const portalHeader = box(portalW + 0.3, 0.25, 0.18, 0x1e293b, { metal: 0.8, rough: 0.25 })
+    portalHeader.position.set(portalMidX, LEVEL2_Y - 0.12, -9)
+    portalHeader.raycast = () => {}
+    group.add(portalHeader)
+
+    // Kusen tiang samping pintu portal
+    for (const px of [gap.x1, gap.x2]) {
+      const pCol = box(0.12, LEVEL_H, 0.14, 0x0f172a, { metal: 0.8, rough: 0.25 })
+      pCol.position.set(px, LEVEL_H + LEVEL_H / 2, -9)
+      pCol.raycast = () => {}
+      group.add(pCol)
+    }
+
+    // Panel kaca transparan geser dekoratif di samping pintu
+    for (const [dx, pw] of [
+      [gap.x1 + 0.45, 0.9],
+      [gap.x2 - 0.45, 0.9],
+    ] as const) {
+      const doorGlass = new THREE.Mesh(
+        new THREE.BoxGeometry(pw, LEVEL_H - 0.3, 0.04),
+        glassMat,
+      )
+      doorGlass.position.set(dx, LEVEL_H + (LEVEL_H - 0.3) / 2, -9.02)
+      doorGlass.raycast = () => {}
+      group.add(doorGlass)
+    }
   }
   // Interior partitions of the exec floor, drawn from the same footprints nav.ts
   // collides with, so the walls and the walkable space cannot disagree. They are
@@ -1690,8 +1772,6 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
   // sehingga papan Kanban dan ruang rapat lantai 2 tetap terlihat jelas dari sudut kamera atas.
   // Sisi tengah & timur (x: -5..28) merupakan VIP Penthouse Sky Lounge & Observation Deck mewah.
   {
-    const LEVEL2_Y = LEVEL_H * 2 // 6.8 m (lantai 3)
-    const LEVEL3_Y = LEVEL_H * 3 // 10.2 m (mahkota atap)
     const n = BARS.north
 
     // 1. Lantai marmer & kayu penthouse deck lantai 3 (x: -5 sampai 28)
@@ -1755,6 +1835,72 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     const atriumCap = box(0.12, 0.07, deckD, 0xd4af37, { metal: 0.85, rough: 0.25 })
     atriumCap.position.set(deckX1, LEVEL2_Y + 1.0, deckMidZ)
     group.add(atriumCap)
+
+    // 4b. Tangga Mengambang Arsitektural Penghubung Lantai 1 ke Lantai 2 (Floating Mezzanine Staircase)
+    // Menghubungkan koridor eksekutif Lantai 1 (y = LEVEL_H = 3.4) naik ke VIP Penthouse Lantai 2 (y = LEVEL2_Y = 6.8)
+    const stairSteps = 12
+    const stairX1 = -4.5
+    const stairX2 = -0.8
+    const stairZ = -10.25
+    const stairW = 1.2
+    const risePerStep = (LEVEL2_Y - LEVEL_H) / stairSteps
+    const runPerStep = (stairX2 - stairX1) / stairSteps
+
+    for (let s = 0; s < stairSteps; s++) {
+      const stepX = stairX1 + s * runPerStep
+      const stepY = LEVEL_H + s * risePerStep + risePerStep / 2
+
+      // Anak tangga kayu jati mewah
+      const tread = box(runPerStep * 1.05, 0.08, stairW, 0x854d0e, { rough: 0.8, metal: 0.1 })
+      tread.position.set(stepX, stepY, stairZ)
+      tread.castShadow = true
+      tread.receiveShadow = true
+      tread.raycast = () => {}
+      group.add(tread)
+
+      // Lampu LED tersembunyi di bawah setiap anak tangga
+      const stepLed = box(runPerStep * 0.9, 0.02, stairW * 0.9, 0xf59e0b, { emissive: 0xf59e0b, ei: 0.6 })
+      stepLed.position.set(stepX, stepY - 0.04, stairZ)
+      stepLed.raycast = () => {}
+      group.add(stepLed)
+    }
+
+    // Balustrade kaca dan handrail emas di sisi tangga mengambang
+    for (const rz of [-stairW / 2, stairW / 2]) {
+      const stairRail = new THREE.Mesh(
+        new THREE.BoxGeometry(stairX2 - stairX1, 0.9, 0.04),
+        glassMat,
+      )
+      stairRail.position.set((stairX1 + stairX2) / 2, (LEVEL_H + LEVEL2_Y) / 2 + 0.45, stairZ + rz)
+      stairRail.rotation.z = Math.atan2(LEVEL2_Y - LEVEL_H, stairX2 - stairX1)
+      stairRail.raycast = () => {}
+      group.add(stairRail)
+
+      const stairCap = box(stairX2 - stairX1, 0.06, 0.08, 0xd4af37, { metal: 0.85, rough: 0.25 })
+      stairCap.position.set((stairX1 + stairX2) / 2, (LEVEL_H + LEVEL2_Y) / 2 + 0.9, stairZ + rz)
+      stairCap.rotation.z = Math.atan2(LEVEL2_Y - LEVEL_H, stairX2 - stairX1)
+      stairCap.raycast = () => {}
+      group.add(stairCap)
+    }
+
+    // 4c. Atrium Chandelier Mewah Bertingkat Menghubungkan Lantai 1 & Lantai 2
+    for (const [cy, cr] of [
+      [LEVEL2_Y + 1.8, 1.4],
+      [LEVEL2_Y + 0.8, 1.0],
+      [LEVEL2_Y - 0.2, 0.65],
+    ] as const) {
+      const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(cr, 0.035, 8, 24),
+        stdMat(0xd4af37, { metal: 0.9, rough: 0.2, emissive: 0xf59e0b, ei: 0.9 }),
+      )
+      ring.rotation.x = Math.PI / 2
+      ring.position.set(-2.6, cy, -10.25)
+      ring.raycast = () => {}
+      group.add(ring)
+    }
+    const atriumLight = new THREE.PointLight(0xffedd5, 0.85, 14)
+    atriumLight.position.set(-2.6, LEVEL2_Y + 0.6, -10.25)
+    group.add(atriumLight)
 
     // 5. Pilar titanium lantai 3 penyangga kanopi atap
     for (const cx of [deckX1, 0, 6, 12, 18, 24, deckX2]) {
@@ -4089,6 +4235,250 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     beachGroup.add(cabana)
   }
 
+  // 8. Papan Tron Jumbo Zelvira di Tengah Pantai/Laut (Jumbo Ocean Megatron)
+  {
+    const jumbotron = new THREE.Group()
+    jumbotron.position.set(0, 0, -58) // Tepat di tengah horizon samudra pantai
+    jumbotron.name = 'zelvira-jumbotron-ocean'
+
+    // Pondasi silinder beton maritim di dalam air (Marine Caissons)
+    for (const px of [-6.5, 6.5]) {
+      const caisson = cyl(1.2, 1.4, 2.4, 0x334155, 12, 0.9)
+      caisson.position.set(px, 0.5, 0)
+      caisson.castShadow = true
+      caisson.receiveShadow = true
+      caisson.raycast = () => {}
+      jumbotron.add(caisson)
+
+      // Tiang baja pylon ganda penopang megatron raksasa (Tinggi hingga 13 meter)
+      const tower = cyl(0.45, 0.5, 11.0, 0x0f172a, 12, 0.3)
+      tower.position.set(px, 6.2, 0)
+      tower.castShadow = true
+      tower.raycast = () => {}
+      jumbotron.add(tower)
+
+      // Ring penguat pylon baja
+      for (const ry of [3.0, 6.0, 9.0]) {
+        const ring = cyl(0.58, 0.58, 0.25, 0x38bdf8, 12, 0.2)
+        ring.position.set(px, ry, 0)
+        ring.raycast = () => {}
+        jumbotron.add(ring)
+      }
+    }
+
+    // Rangka truss baja silang pengikat antar tiang pylon
+    for (let ty = 3.2; ty <= 8.5; ty += 2.2) {
+      const truss = box(13.0, 0.16, 0.16, 0x1e293b, { metal: 0.8, rough: 0.3 })
+      truss.position.set(0, ty, 0)
+      truss.raycast = () => {}
+      jumbotron.add(truss)
+    }
+
+    // Kabinet display megatron raksasa (18 meter lebar x 9.5 meter tinggi)
+    const screenW = 18.0
+    const screenH = 9.5
+    const screenY = 9.8 // Ketinggian ideal terlihat dari Lantai 0, Lantai 1, dan Lantai 2
+
+    const cabinet = box(screenW + 0.8, screenH + 0.8, 0.9, 0x090d16, { metal: 0.7, rough: 0.3 })
+    cabinet.position.set(0, screenY, 0)
+    cabinet.castShadow = true
+    cabinet.raycast = () => {}
+    jumbotron.add(cabinet)
+
+    // Bezel list modern futuristik dengan aksen pendar neon toska
+    const bezelTop = box(screenW + 0.9, 0.2, 0.95, 0x06b6d4, { emissive: 0x06b6d4, ei: 0.85 })
+    bezelTop.position.set(0, screenY + screenH / 2 + 0.1, 0)
+    bezelTop.raycast = () => {}
+    jumbotron.add(bezelTop)
+
+    const bezelBot = box(screenW + 0.9, 0.2, 0.95, 0x06b6d4, { emissive: 0x06b6d4, ei: 0.85 })
+    bezelBot.position.set(0, screenY - screenH / 2 - 0.1, 0)
+    bezelBot.raycast = () => {}
+    jumbotron.add(bezelBot)
+
+    // Layar LED Jumbotron Display Utama menampilkan Logo Zelvira (logo.png)
+    const logoTex = logoTexture()
+    const jumbotronMat = new THREE.MeshStandardMaterial({
+      map: logoTex,
+      transparent: true,
+      roughness: 0.15,
+      metalness: 0.1,
+      emissive: 0xffffff,
+      emissiveMap: logoTex,
+      emissiveIntensity: 1.15,
+    })
+
+    // Sisi depan menghadap ke gedung kantor (menghadap +Z)
+    const frontScreen = new THREE.Mesh(new THREE.PlaneGeometry(screenW, screenH), jumbotronMat)
+    frontScreen.position.set(0, screenY, 0.46)
+    frontScreen.raycast = () => {}
+    jumbotron.add(frontScreen)
+
+    // Sisi belakang menghadap samudra lepas (menghadap -Z)
+    const backScreen = new THREE.Mesh(new THREE.PlaneGeometry(screenW, screenH), jumbotronMat)
+    backScreen.rotation.y = Math.PI
+    backScreen.position.set(0, screenY, -0.46)
+    backScreen.raycast = () => {}
+    jumbotron.add(backScreen)
+
+    // Catwalk platform servis & pemeliharaan di bawah layar
+    const catwalk = box(screenW + 1.2, 0.15, 1.4, 0x1e293b, { rough: 0.85 })
+    catwalk.position.set(0, screenY - screenH / 2 - 0.45, 0.45)
+    catwalk.raycast = () => {}
+    jumbotron.add(catwalk)
+
+    // Pagar pengaman catwalk
+    const catRail = box(screenW + 1.2, 0.85, 0.08, 0x64748b, { metal: 0.7, rough: 0.3 })
+    catRail.position.set(0, screenY - screenH / 2, 1.1)
+    catRail.raycast = () => {}
+    jumbotron.add(catRail)
+
+    // Lampu tembak pendar dari bawah layar
+    const jumbotronSpot = new THREE.PointLight(0x38bdf8, 1.2, 28)
+    jumbotronSpot.position.set(0, screenY - screenH / 2, 1.8)
+    jumbotron.add(jumbotronSpot)
+
+    jumbotron.raycast = () => {}
+    beachGroup.add(jumbotron)
+  }
+
+  // 9. Perahu-Perahu Nelayan Tradisional Indonesia (Cadik / Jukung di Samudra)
+  const fishingBoats: { group: THREE.Group; baseY: number; phase: number }[] = []
+
+  const buildFishingBoat = (
+    x: number,
+    z: number,
+    rotY: number,
+    hullColor: number,
+    trimColor: number,
+    phase = 0,
+  ) => {
+    const boat = new THREE.Group()
+    const baseY = -0.015
+    boat.position.set(x, baseY, z)
+    boat.rotation.y = rotY
+
+    // 1. Badan Perahu Utama Kayu (Hull)
+    const hullL = 4.8
+    const hullW = 0.95
+    const hullH = 0.55
+    const hullMat = stdMat(hullColor, { rough: 0.75 })
+    const trimMat = stdMat(trimColor, { rough: 0.6, metal: 0.1 })
+
+    // Dasar perahu
+    const mainHull = new THREE.Mesh(new THREE.BoxGeometry(hullW, hullH, hullL), hullMat)
+    mainHull.position.y = 0.22
+    mainHull.castShadow = true
+    mainHull.raycast = () => {}
+    boat.add(mainHull)
+
+    // Lis tepi atas perahu (Gunwale rail)
+    const gunwaleL = box(0.08, 0.08, hullL + 0.1, trimColor, { rough: 0.6 })
+    gunwaleL.position.set(-hullW / 2, 0.48, 0)
+    gunwaleL.raycast = () => {}
+    boat.add(gunwaleL)
+
+    const gunwaleR = box(0.08, 0.08, hullL + 0.1, trimColor, { rough: 0.6 })
+    gunwaleR.position.set(hullW / 2, 0.48, 0)
+    gunwaleR.raycast = () => {}
+    boat.add(gunwaleR)
+
+    // Haluan lancip melengkung khas perahu tradisional Indonesia (Bow)
+    const bowProw = new THREE.Mesh(new THREE.ConeGeometry(0.42, 1.4, 7), trimMat)
+    bowProw.rotation.x = -Math.PI / 2.3
+    bowProw.position.set(0, 0.42, -hullL / 2 - 0.45)
+    bowProw.castShadow = true
+    bowProw.raycast = () => {}
+    boat.add(bowProw)
+
+    // Buritan perahu (Stern)
+    const sternProw = new THREE.Mesh(new THREE.ConeGeometry(0.38, 0.8, 6), trimMat)
+    sternProw.rotation.x = Math.PI / 2.4
+    sternProw.position.set(0, 0.35, hullL / 2 + 0.25)
+    sternProw.castShadow = true
+    sternProw.raycast = () => {}
+    boat.add(sternProw)
+
+    // 2. Sayap Cadik Bambu Penyeimbang Khas Perahu Nelayan (Bamboo Outriggers)
+    const outriggerSpan = 2.1
+    for (const zOffset of [-1.1, 1.1]) {
+      // Palang penyangga horizontal (Katir)
+      const katir = box(outriggerSpan * 2 + 0.3, 0.07, 0.07, 0x854d0e, { rough: 0.85 })
+      katir.position.set(0, 0.42, zOffset)
+      katir.raycast = () => {}
+      boat.add(katir)
+
+      // Tiang penahan vertikal miring ke pelampung
+      for (const side of [-1, 1]) {
+        const strut = box(0.06, 0.35, 0.06, 0x854d0e, { rough: 0.85 })
+        strut.position.set(side * outriggerSpan, 0.22, zOffset)
+        strut.raycast = () => {}
+        boat.add(strut)
+      }
+    }
+
+    // Pelampung cadik bambu panjang di kedua sisi perahu
+    for (const side of [-1, 1]) {
+      const float = cyl(0.1, 0.1, 4.4, 0xfde047, 8)
+      float.rotation.x = Math.PI / 2
+      float.position.set(side * outriggerSpan, 0.06, 0)
+      float.castShadow = true
+      float.raycast = () => {}
+      boat.add(float)
+    }
+
+    // 3. Detail Deck & Aksesori Nelayan
+    // Bangku duduk kayu
+    for (const bz of [-0.8, 0.3, 1.3]) {
+      const seat = box(hullW - 0.08, 0.06, 0.32, 0x78350f, { rough: 0.9 })
+      seat.position.set(0, 0.38, bz)
+      seat.raycast = () => {}
+      boat.add(seat)
+    }
+
+    // Tiang layar bambu dengan layar tergulung
+    const mast = cyl(0.05, 0.06, 2.6, 0x78350f, 7)
+    mast.position.set(0, 1.45, -0.2)
+    mast.castShadow = true
+    mast.raycast = () => {}
+    boat.add(mast)
+
+    // Kain layar tergulung putih
+    const furledSail = cyl(0.11, 0.09, 1.8, 0xf8fafc, 6)
+    furledSail.position.set(0.06, 1.5, -0.2)
+    furledSail.rotation.z = 0.08
+    furledSail.raycast = () => {}
+    boat.add(furledSail)
+
+    // Jaring nelayan bertumpuk di dek (Fishing Net)
+    const net = new THREE.Mesh(new THREE.DodecahedronGeometry(0.32, 1), stdMat(0x334155, { rough: 0.95 }))
+    net.position.set(0.12, 0.42, 0.8)
+    net.scale.set(1.2, 0.6, 1.4)
+    net.raycast = () => {}
+    boat.add(net)
+
+    // Lentera badai minyak khas nelayan di haluan
+    const lantern = box(0.12, 0.18, 0.12, 0xd97706, { metal: 0.8, rough: 0.2 })
+    lantern.position.set(0, 0.65, -hullL / 2 - 0.2)
+    lantern.raycast = () => {}
+    boat.add(lantern)
+
+    const boatLight = new THREE.PointLight(0xf59e0b, hour >= 18 || hour < 6 ? 0.75 : 0.2, 6)
+    boatLight.position.set(0, 0.72, -hullL / 2 - 0.2)
+    boat.add(boatLight)
+
+    boat.raycast = () => {}
+    beachGroup.add(boat)
+    fishingBoats.push({ group: boat, baseY, phase })
+  }
+
+  // Menempatkan perahu-perahu nelayan tradisional di lautan
+  buildFishingBoat(8.5, -48.0, 0.35, 0xf8fafc, 0x06b6d4, 0.2)   // Perahu 1: Putih & Toska dekat dermaga
+  buildFishingBoat(28.0, -56.0, -0.6, 0x1e3a8a, 0xf59e0b, 1.5)  // Perahu 2: Biru Dongker & Emas di timur
+  buildFishingBoat(-22.0, -54.0, 0.85, 0x78350f, 0xe11d48, 2.8) // Perahu 3: Kayu Jati & Merah di barat
+  buildFishingBoat(-8.0, -43.0, 0.15, 0x059669, 0xf8fafc, 3.7)  // Perahu 4: Hijau Zamrud dekat bibir pantai
+  buildFishingBoat(18.0, -68.0, -0.3, 0xea580c, 0x0f172a, 4.9)  // Perahu 5: Oranye cerah di horizon tengah
+
   /* --------------------------------------------------------- living street */
   const ROW_SPEED = [1.55, 1.05] as const
   const PED_GAP = 3.2
@@ -4244,6 +4634,13 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     northOcean.position.y = -0.035 + Math.sin(t * 1.5) * 0.015
     shoreFoam.position.z = -44.5 + Math.sin(t * 1.5) * 0.85
     foamMat.opacity = 0.5 + Math.sin(t * 1.5) * 0.25
+
+    // Animasi ayunan ombak perahu nelayan (Heave, Roll & Pitch)
+    for (const b of fishingBoats) {
+      b.group.position.y = b.baseY + Math.sin(t * 1.5 + b.phase) * 0.045
+      b.group.rotation.z = Math.sin(t * 1.8 + b.phase) * 0.038
+      b.group.rotation.x = Math.cos(t * 1.3 + b.phase) * 0.022
+    }
   }
 
   streetGroup.visible = true
