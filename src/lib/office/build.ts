@@ -1461,12 +1461,6 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     exteriorDoorLogo.position.set(DOOR.x, 2.35, HALF_D + WALL_T / 2 + 0.03)
     exteriorDoorLogo.name = 'office-exterior-logo-entrance'
     group.add(exteriorDoorLogo)
-
-    // 2. Monolit / Totem Landmark Zelvira Luar Gedung di depan plaza kantor
-    const exteriorTotem = createExteriorTotem()
-    exteriorTotem.position.set(4.2, 0, HALF_D + 2.2)
-    exteriorTotem.name = 'office-exterior-totem'
-    group.add(exteriorTotem)
   }
   // courtyard-facing walls, SPLIT AT EVERY DOORWAY, from the same shared list the
   // collision footprints use. Building a solid wall here and then adding door jambs
@@ -2053,10 +2047,10 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
       group.add(louver)
     }
 
-    // 9. JUMBO TRON ROOFTOP KORPORAT DI ATAP LANTAI 2 "ZELVIRA OFFICE"
+    // 9. JUMBO TRON ROOFTOP KORPORAT DI TENGAH ATAP LANTAI 2 "ZELVIRA OFFICE"
     {
       const jumbotron = new THREE.Group()
-      jumbotron.position.set(6.0, LEVEL3_Y + 2.6, -8.9)
+      jumbotron.position.set(0.0, LEVEL3_Y + 2.6, -8.9)
       jumbotron.name = 'office-rooftop-jumbotron-zelvira'
 
       const screenW = 16.0
@@ -3387,16 +3381,21 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     logoFace.position.set(DOOR.x, 4.8, HALF_D + 0.15)
     logoFace.name = 'office-zelvira-logo-entrance'
     group.add(logoFace)
-    // canopy over the entrance, so the doorway reads from above
-    const canopy = box(7.0, 0.22, 2.6, 0xe8eef2, { rough: 0.85 })
+    // Kanopi kantilever mengambang di atas pintu masuk utama (bebas tiang di permukaan lantai 1 / tanah)
+    const canopy = box(7.0, 0.22, 2.6, 0x1e293b, { metal: 0.7, rough: 0.3 })
     canopy.position.set(DOOR.x, 3.1, HALF_D + 1.3)
     canopy.castShadow = true
+    canopy.raycast = () => {}
     group.add(canopy)
-    for (const cx of [-3.2, 3.2]) {
-      const col = cyl(0.12, 0.12, 3.0, 0xe6e2d8, 10)
-      col.position.set(DOOR.x + cx, 1.5, HALF_D + 2.4)
-      col.castShadow = true
-      group.add(col)
+
+    // Batang tarik baja suspensi kantilever dari dinding atas (tanpa tiang menancap di tanah depan pintu)
+    for (const cx of [-3.1, 3.1]) {
+      const tieRod = cyl(0.03, 0.03, 2.3, 0x94a3b8, 8, 0.8)
+      tieRod.position.set(DOOR.x + cx, 3.85, HALF_D + 1.1)
+      tieRod.rotation.x = 0.52
+      tieRod.castShadow = true
+      tieRod.raycast = () => {}
+      group.add(tieRod)
     }
     // a carpet runner from the doors into the lobby, so the axis reads
     const runner = new THREE.Mesh(new THREE.PlaneGeometry(4.0, 3.4), carpetMat)
@@ -4704,8 +4703,229 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     beachGroup.add(cafeGroup)
   }
 
-  // 9. Perahu-Perahu Nelayan Tradisional Indonesia (Cadik / Jukung di Samudra)
-  const fishingBoats: { group: THREE.Group; baseY: number; phase: number }[] = []
+  // 9. Perahu-Perahu Nelayan Tradisional Indonesia (Cadik / Jukung) & Karakter Pantai
+  type FishingBoatRecord = {
+    group: THREE.Group
+    baseX: number
+    baseY: number
+    baseZ: number
+    rotY: number
+    speedX: number
+    speedZ: number
+    rangeX: number
+    rangeZ: number
+    phase: number
+  }
+  const fishingBoats: FishingBoatRecord[] = []
+  const fishingRods: { rod: THREE.Object3D; phase: number }[] = []
+  const beachAvatars: { group: THREE.Group; baseY: number; phase: number }[] = []
+
+  // Helper untuk membuat avatar manusia pantai berkarakter
+  const createBeachHuman = (opts: {
+    skinColor?: number
+    shirtColor?: number
+    pantsColor?: number
+    hat?: 'caping' | 'straw' | 'sunglasses' | 'bandana' | 'none'
+    pose: 'sitting' | 'standing' | 'lying_back' | 'lying_prone' | 'lounging'
+    holding?: 'fishing_rod' | 'paddle' | 'drink' | 'waving' | 'none'
+  }) => {
+    const g = new THREE.Group()
+    const skinMat = stdMat(opts.skinColor ?? 0xd4a373, { rough: 0.85 })
+    const shirtMat = stdMat(opts.shirtColor ?? 0x0284c7, { rough: 0.75 })
+    const pantsMat = stdMat(opts.pantsColor ?? 0x1e293b, { rough: 0.8 })
+
+    // Kepala
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.25, 0.24), skinMat)
+    head.castShadow = true
+    head.raycast = () => {}
+
+    if (opts.hat === 'caping') {
+      const caping = new THREE.Mesh(new THREE.ConeGeometry(0.32, 0.16, 8), stdMat(0xd4a373, { rough: 0.9 }))
+      caping.position.y = 0.16
+      caping.castShadow = true
+      caping.raycast = () => {}
+      head.add(caping)
+    } else if (opts.hat === 'straw') {
+      const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.03, 12), stdMat(0xfde047, { rough: 0.9 }))
+      brim.position.y = 0.13
+      brim.raycast = () => {}
+      head.add(brim)
+      const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.12, 12), stdMat(0xeab308, { rough: 0.9 }))
+      crown.position.y = 0.2
+      crown.raycast = () => {}
+      head.add(crown)
+    } else if (opts.hat === 'sunglasses') {
+      const glasses = box(0.22, 0.05, 0.06, 0x090d16, { metal: 0.9, rough: 0.1 })
+      glasses.position.set(0, 0.03, 0.13)
+      glasses.raycast = () => {}
+      head.add(glasses)
+    }
+
+    if (opts.pose === 'standing') {
+      head.position.y = 1.48
+      g.add(head)
+
+      const body = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.52, 0.22), shirtMat)
+      body.position.y = 1.05
+      body.castShadow = true
+      body.raycast = () => {}
+      g.add(body)
+
+      for (const side of [-1, 1]) {
+        const leg = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.72, 0.12), pantsMat)
+        leg.position.set(side * 0.09, 0.36, 0)
+        leg.castShadow = true
+        leg.raycast = () => {}
+        g.add(leg)
+      }
+
+      if (opts.holding === 'waving') {
+        const lArm = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.48, 0.1), shirtMat)
+        lArm.position.set(-0.23, 1.05, 0)
+        lArm.raycast = () => {}
+        g.add(lArm)
+
+        const rArm = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.48, 0.1), shirtMat)
+        rArm.position.set(0.26, 1.45, 0)
+        rArm.rotation.z = -0.5
+        rArm.raycast = () => {}
+        g.add(rArm)
+      } else if (opts.holding === 'fishing_rod') {
+        const rArm = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.48, 0.1), shirtMat)
+        rArm.position.set(0.23, 1.15, 0.2)
+        rArm.rotation.x = -0.7
+        rArm.raycast = () => {}
+        g.add(rArm)
+
+        const rod = cyl(0.018, 0.007, 3.2, 0x854d0e, 6)
+        rod.position.set(0.28, 1.85, 1.4)
+        rod.rotation.x = -1.1
+        rod.raycast = () => {}
+        g.add(rod)
+
+        const line = cyl(0.003, 0.003, 2.4, 0xf8fafc, 4)
+        line.position.set(0.28, 0.75, 2.7)
+        line.raycast = () => {}
+        g.add(line)
+        fishingRods.push({ rod, phase: Math.random() * 5 })
+      } else {
+        for (const side of [-1, 1]) {
+          const arm = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.48, 0.1), shirtMat)
+          arm.position.set(side * 0.23, 1.05, 0)
+          arm.raycast = () => {}
+          g.add(arm)
+        }
+      }
+    } else if (opts.pose === 'sitting') {
+      head.position.set(0, 0.98, 0)
+      g.add(head)
+
+      const body = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.5, 0.22), shirtMat)
+      body.position.set(0, 0.58, 0)
+      body.castShadow = true
+      body.raycast = () => {}
+      g.add(body)
+
+      for (const side of [-1, 1]) {
+        // Paha horizontal
+        const thigh = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.38), pantsMat)
+        thigh.position.set(side * 0.09, 0.32, 0.19)
+        thigh.castShadow = true
+        thigh.raycast = () => {}
+        g.add(thigh)
+        // Kaki bawah menjuntai
+        const calf = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.42, 0.11), skinMat)
+        calf.position.set(side * 0.09, 0.06, 0.34)
+        calf.castShadow = true
+        calf.raycast = () => {}
+        g.add(calf)
+      }
+
+      if (opts.holding === 'fishing_rod') {
+        const arm = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.44, 0.1), shirtMat)
+        arm.position.set(0.23, 0.65, 0.18)
+        arm.rotation.x = -0.8
+        arm.raycast = () => {}
+        g.add(arm)
+
+        const rod = cyl(0.016, 0.007, 3.4, 0x854d0e, 6)
+        rod.position.set(0.28, 1.15, 1.6)
+        rod.rotation.x = -1.15
+        rod.raycast = () => {}
+        g.add(rod)
+
+        const line = cyl(0.003, 0.003, 2.5, 0xf8fafc, 4)
+        line.position.set(0.28, 0.15, 2.85)
+        line.raycast = () => {}
+        g.add(line)
+        fishingRods.push({ rod, phase: Math.random() * 5 })
+      } else if (opts.holding === 'paddle') {
+        const paddle = box(0.06, 1.6, 0.14, 0x78350f, { rough: 0.85 })
+        paddle.position.set(0.26, 0.2, 0.4)
+        paddle.rotation.x = 0.55
+        paddle.raycast = () => {}
+        g.add(paddle)
+      }
+    } else if (opts.pose === 'lying_back') {
+      head.position.set(0, 0.18, -0.65)
+      head.rotation.x = 0.2
+      g.add(head)
+
+      const body = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.18, 0.52), pantsMat)
+      body.position.set(0, 0.1, -0.25)
+      body.castShadow = true
+      body.raycast = () => {}
+      g.add(body)
+
+      for (const side of [-1, 1]) {
+        const leg = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.72), skinMat)
+        leg.position.set(side * 0.1, 0.07, 0.38)
+        leg.castShadow = true
+        leg.raycast = () => {}
+        g.add(leg)
+      }
+    } else if (opts.pose === 'lying_prone') {
+      head.position.set(0, 0.28, -0.55)
+      head.rotation.x = -0.3
+      g.add(head)
+
+      const body = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.18, 0.52), pantsMat)
+      body.position.set(0, 0.14, -0.22)
+      body.castShadow = true
+      body.raycast = () => {}
+      g.add(body)
+
+      for (const side of [-1, 1]) {
+        const leg = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.72), skinMat)
+        leg.position.set(side * 0.1, 0.07, 0.38)
+        leg.castShadow = true
+        leg.raycast = () => {}
+        g.add(leg)
+      }
+    } else if (opts.pose === 'lounging') {
+      head.position.set(0, 0.62, -0.35)
+      head.rotation.x = 0.4
+      g.add(head)
+
+      const body = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.48, 0.2), shirtMat)
+      body.position.set(0, 0.42, -0.15)
+      body.rotation.x = 0.45
+      body.castShadow = true
+      body.raycast = () => {}
+      g.add(body)
+
+      for (const side of [-1, 1]) {
+        const leg = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.72), skinMat)
+        leg.position.set(side * 0.1, 0.22, 0.32)
+        leg.castShadow = true
+        leg.raycast = () => {}
+        g.add(leg)
+      }
+    }
+
+    g.raycast = () => {}
+    return g
+  }
 
   const buildFishingBoat = (
     x: number,
@@ -4714,6 +4934,11 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     hullColor: number,
     trimColor: number,
     phase = 0,
+    speedX = 0,
+    speedZ = 0,
+    rangeX = 0,
+    rangeZ = 0,
+    sailorRole?: 'steering' | 'fishing' | 'standing' | 'waving',
   ) => {
     const boat = new THREE.Group()
     const baseY = -0.015
@@ -4764,13 +4989,11 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     // 2. Sayap Cadik Bambu Penyeimbang Khas Perahu Nelayan (Bamboo Outriggers)
     const outriggerSpan = 2.1
     for (const zOffset of [-1.1, 1.1]) {
-      // Palang penyangga horizontal (Katir)
       const katir = box(outriggerSpan * 2 + 0.3, 0.07, 0.07, 0x854d0e, { rough: 0.85 })
       katir.position.set(0, 0.42, zOffset)
       katir.raycast = () => {}
       boat.add(katir)
 
-      // Tiang penahan vertikal miring ke pelampung
       for (const side of [-1, 1]) {
         const strut = box(0.06, 0.35, 0.06, 0x854d0e, { rough: 0.85 })
         strut.position.set(side * outriggerSpan, 0.22, zOffset)
@@ -4779,7 +5002,6 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
       }
     }
 
-    // Pelampung cadik bambu panjang di kedua sisi perahu
     for (const side of [-1, 1]) {
       const float = cyl(0.1, 0.1, 4.4, 0xfde047, 8)
       float.rotation.x = Math.PI / 2
@@ -4790,7 +5012,6 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     }
 
     // 3. Detail Deck & Aksesori Nelayan
-    // Bangku duduk kayu
     for (const bz of [-0.8, 0.3, 1.3]) {
       const seat = box(hullW - 0.08, 0.06, 0.32, 0x78350f, { rough: 0.9 })
       seat.position.set(0, 0.38, bz)
@@ -4798,28 +5019,24 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
       boat.add(seat)
     }
 
-    // Tiang layar bambu dengan layar tergulung
     const mast = cyl(0.05, 0.06, 2.6, 0x78350f, 7)
     mast.position.set(0, 1.45, -0.2)
     mast.castShadow = true
     mast.raycast = () => {}
     boat.add(mast)
 
-    // Kain layar tergulung putih
     const furledSail = cyl(0.11, 0.09, 1.8, 0xf8fafc, 6)
     furledSail.position.set(0.06, 1.5, -0.2)
     furledSail.rotation.z = 0.08
     furledSail.raycast = () => {}
     boat.add(furledSail)
 
-    // Jaring nelayan bertumpuk di dek (Fishing Net)
     const net = new THREE.Mesh(new THREE.DodecahedronGeometry(0.32, 1), stdMat(0x334155, { rough: 0.95 }))
     net.position.set(0.12, 0.42, 0.8)
     net.scale.set(1.2, 0.6, 1.4)
     net.raycast = () => {}
     boat.add(net)
 
-    // Lentera badai minyak khas nelayan di haluan
     const lantern = box(0.12, 0.18, 0.12, 0xd97706, { metal: 0.8, rough: 0.2 })
     lantern.position.set(0, 0.65, -hullL / 2 - 0.2)
     lantern.raycast = () => {}
@@ -4829,17 +5046,244 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     boatLight.position.set(0, 0.72, -hullL / 2 - 0.2)
     boat.add(boatLight)
 
+    // 4. Avatar Pelaut / Nelayan di atas Perahu
+    if (sailorRole === 'steering') {
+      const sailor = createBeachHuman({
+        pose: 'sitting',
+        holding: 'paddle',
+        hat: 'caping',
+        shirtColor: 0x0284c7,
+        pantsColor: 0x1e293b,
+      })
+      sailor.position.set(0, 0.38, 1.1)
+      sailor.rotation.y = Math.PI
+      boat.add(sailor)
+    } else if (sailorRole === 'fishing') {
+      const fisherman = createBeachHuman({
+        pose: 'sitting',
+        holding: 'fishing_rod',
+        hat: 'caping',
+        shirtColor: 0xd97706,
+        pantsColor: 0x0f172a,
+      })
+      fisherman.position.set(0, 0.38, -0.8)
+      fisherman.rotation.y = -Math.PI / 2
+      boat.add(fisherman)
+    } else if (sailorRole === 'standing') {
+      const captain = createBeachHuman({
+        pose: 'standing',
+        hat: 'bandana',
+        shirtColor: 0xdc2626,
+        pantsColor: 0x1e3a8a,
+      })
+      captain.position.set(0, 0.45, 0.3)
+      captain.rotation.y = Math.PI
+      boat.add(captain)
+    } else if (sailorRole === 'waving') {
+      const waver = createBeachHuman({
+        pose: 'standing',
+        holding: 'waving',
+        hat: 'straw',
+        shirtColor: 0x16a34a,
+        pantsColor: 0xf8fafc,
+      })
+      waver.position.set(0, 0.45, -1.2)
+      waver.rotation.y = Math.PI
+      boat.add(waver)
+    }
+
     boat.raycast = () => {}
     beachGroup.add(boat)
-    fishingBoats.push({ group: boat, baseY, phase })
+    fishingBoats.push({ group: boat, baseX: x, baseY, baseZ: z, rotY, speedX, speedZ, rangeX, rangeZ, phase })
   }
 
-  // Menempatkan perahu-perahu nelayan tradisional di lautan
-  buildFishingBoat(8.5, -48.0, 0.35, 0xf8fafc, 0x06b6d4, 0.2)   // Perahu 1: Putih & Toska dekat dermaga
-  buildFishingBoat(28.0, -56.0, -0.6, 0x1e3a8a, 0xf59e0b, 1.5)  // Perahu 2: Biru Dongker & Emas di timur
-  buildFishingBoat(-22.0, -54.0, 0.85, 0x78350f, 0xe11d48, 2.8) // Perahu 3: Kayu Jati & Merah di barat
-  buildFishingBoat(-8.0, -43.0, 0.15, 0x059669, 0xf8fafc, 3.7)  // Perahu 4: Hijau Zamrud dekat bibir pantai
-  buildFishingBoat(18.0, -68.0, -0.3, 0xea580c, 0x0f172a, 4.9)  // Perahu 5: Oranye cerah di horizon tengah
+  // Menempatkan 11 perahu nelayan tradisional: ada yang bersandar dan ada yang berlayar aktif
+  // 1. Perahu dekat dermaga dengan nelayan memancing
+  buildFishingBoat(8.5, -48.0, 0.35, 0xf8fafc, 0x06b6d4, 0.2, 0, 0, 0, 0, 'fishing')
+  // 2. Perahu timur dengan juru mudi memegang dayung kemudi
+  buildFishingBoat(28.0, -56.0, -0.6, 0x1e3a8a, 0xf59e0b, 1.5, 0, 0, 0, 0, 'steering')
+  // 3. Perahu kayu jati barat dengan kapten berdiri memeriksa jaring
+  buildFishingBoat(-22.0, -54.0, 0.85, 0x78350f, 0xe11d48, 2.8, 0, 0, 0, 0, 'standing')
+  // 4. Perahu hijau zamrud dekat bibir pantai barat
+  buildFishingBoat(-8.0, -43.0, 0.15, 0x059669, 0xf8fafc, 3.7, 0, 0, 0, 0, 'fishing')
+  // 5. Perahu oranye cerah di ujung dermaga
+  buildFishingBoat(18.0, -68.0, -0.3, 0xea580c, 0x0f172a, 4.9, 0, 0, 0, 0, 'steering')
+  // 6. Perahu Bergerak 1: Berlayar patroli di laut barat dengan nelayan melambaikan tangan
+  buildFishingBoat(-42.0, -58.0, Math.PI / 2, 0xd97706, 0x0284c7, 0.8, 0.32, 0, 16, 0, 'waving')
+  // 7. Perahu Bergerak 2: Berlayar elegan di laut timur dengan juru mudi aktif
+  buildFishingBoat(36.0, -72.0, -Math.PI / 2, 0x047857, 0xf59e0b, 2.1, 0.26, 0, 18, 0, 'steering')
+  // 8. Perahu di laut dalam barat
+  buildFishingBoat(-36.0, -78.0, 0.45, 0x991b1b, 0xfde047, 3.2, 0, 0, 0, 0, 'fishing')
+  // 9. Perahu dekat Beach Cafe timur
+  buildFishingBoat(48.0, -49.0, -0.7, 0x0284c7, 0xf8fafc, 4.1, 0, 0, 0, 0, 'standing')
+  // 10. Perahu Bergerak 3: Berlayar megah di laut horizon tengah berlatar pegunungan
+  buildFishingBoat(0.0, -86.0, Math.PI / 2, 0x475569, 0xef4444, 5.0, 0.2, 0, 24, 0, 'standing')
+  // 11. Perahu kayu tradisional memancing di laguna tengah
+  buildFishingBoat(-14.0, -66.0, 0.2, 0x854d0e, 0x06b6d4, 1.8, 0, 0, 0, 0, 'fishing')
+
+  /* ------------------------------------------- beach activities & avatars */
+  // 1. Aktivitas Memancing di Dermaga & Bibir Pantai
+  {
+    // Pemancing 1: Duduk santai di ujung dermaga kayu dengan kaki menjuntai ke air laut
+    const pierFisher1 = createBeachHuman({
+      pose: 'sitting',
+      holding: 'fishing_rod',
+      hat: 'caping',
+      shirtColor: 0x2563eb,
+      pantsColor: 0x1e293b,
+    })
+    pierFisher1.position.set(14.0, 0.35, -67.4)
+    pierFisher1.rotation.y = Math.PI
+    beachGroup.add(pierFisher1)
+    beachAvatars.push({ group: pierFisher1, baseY: 0.35, phase: 0.4 })
+
+    // Ember kaleng ikan di samping pemancing ujung dermaga
+    const bucket = cyl(0.14, 0.12, 0.28, 0x94a3b8, 10, 0.8)
+    bucket.position.set(14.6, 0.49, -66.8)
+    bucket.raycast = () => {}
+    beachGroup.add(bucket)
+
+    // Pemancing 2: Duduk santai di kursi lipat tengah dermaga
+    const chair = box(0.5, 0.45, 0.45, 0x0284c7, { rough: 0.8 })
+    chair.position.set(12.3, 0.58, -48.0)
+    chair.raycast = () => {}
+    beachGroup.add(chair)
+
+    const pierFisher2 = createBeachHuman({
+      pose: 'sitting',
+      holding: 'fishing_rod',
+      hat: 'straw',
+      shirtColor: 0xe11d48,
+      pantsColor: 0xf8fafc,
+    })
+    pierFisher2.position.set(12.3, 0.58, -48.0)
+    pierFisher2.rotation.y = -Math.PI / 2
+    beachGroup.add(pierFisher2)
+    beachAvatars.push({ group: pierFisher2, baseY: 0.58, phase: 1.6 })
+
+    // Kotak umpan pancing merah-putih
+    const tackleBox = box(0.3, 0.18, 0.2, 0xdc2626, { rough: 0.6 })
+    tackleBox.position.set(12.3, 0.45, -47.4)
+    tackleBox.raycast = () => {}
+    beachGroup.add(tackleBox)
+
+    // Pemancing 3: Berdiri di bibir pantai berpasir barat (Surf Caster)
+    const surfFisher = createBeachHuman({
+      pose: 'standing',
+      holding: 'fishing_rod',
+      hat: 'caping',
+      shirtColor: 0x059669,
+      pantsColor: 0x334155,
+    })
+    surfFisher.position.set(-32.0, -0.04, -43.0)
+    surfFisher.rotation.y = Math.PI * 0.9
+    beachGroup.add(surfFisher)
+    beachAvatars.push({ group: surfFisher, baseY: -0.04, phase: 2.5 })
+  }
+
+  // 2. Aktivitas Berjemur di Pantai (Sunbathing on Beach)
+  {
+    // Sunbather 1: Tiduran telentang santai di handuk pantai bergaris biru-putih
+    const towel1 = box(1.1, 0.02, 2.1, 0x38bdf8, { rough: 0.9 })
+    towel1.position.set(-38.0, -0.035, -22.0)
+    towel1.raycast = () => {}
+    beachGroup.add(towel1)
+
+    // Garis putih handuk
+    for (const tz of [-0.6, 0, 0.6]) {
+      const stripe = box(1.1, 0.025, 0.2, 0xffffff, { rough: 0.9 })
+      stripe.position.set(-38.0, -0.033, -22.0 + tz)
+      stripe.raycast = () => {}
+      beachGroup.add(stripe)
+    }
+
+    const bather1 = createBeachHuman({
+      pose: 'lying_back',
+      hat: 'sunglasses',
+      pantsColor: 0x06b6d4,
+    })
+    bather1.position.set(-38.0, -0.035, -22.0)
+    beachGroup.add(bather1)
+    beachAvatars.push({ group: bather1, baseY: -0.035, phase: 0.8 })
+
+    // Kelapa muda tropis dengan sedotan
+    const coco1 = new THREE.Mesh(new THREE.DodecahedronGeometry(0.12, 1), stdMat(0x65a30d, { rough: 0.8 }))
+    coco1.position.set(-37.2, 0.08, -22.5)
+    coco1.raycast = () => {}
+    beachGroup.add(coco1)
+    const straw1 = cyl(0.01, 0.01, 0.24, 0xfde047, 5)
+    straw1.position.set(-37.2, 0.22, -22.5)
+    straw1.rotation.z = 0.3
+    straw1.raycast = () => {}
+    beachGroup.add(straw1)
+
+    // Sunbather 2: Tiduran tengkurap santai di handuk pantai kuning-oranye membaca buku
+    const towel2 = box(1.1, 0.02, 2.1, 0xf59e0b, { rough: 0.9 })
+    towel2.position.set(-48.0, -0.035, -19.0)
+    towel2.raycast = () => {}
+    beachGroup.add(towel2)
+
+    const bather2 = createBeachHuman({
+      pose: 'lying_prone',
+      pantsColor: 0xe11d48,
+    })
+    bather2.position.set(-48.0, -0.035, -19.0)
+    beachGroup.add(bather2)
+    beachAvatars.push({ group: bather2, baseY: -0.035, phase: 2.1 })
+
+    // Buku/majalah terbuka di depan bather2
+    const book = box(0.24, 0.02, 0.18, 0xf8fafc, { rough: 0.6 })
+    book.position.set(-48.0, 0.01, -19.8)
+    book.raycast = () => {}
+    beachGroup.add(book)
+
+    // Sunbather 3: Duduk bersandar santai di kursi santai mewah + payung pantai di timur dekat Cafe
+    const lounger = box(0.8, 0.28, 2.1, 0x78350f, { rough: 0.85 })
+    lounger.position.set(36.0, 0.1, -23.0)
+    lounger.raycast = () => {}
+    beachGroup.add(lounger)
+
+    const cushion = box(0.72, 0.08, 2.0, 0xffffff, { rough: 0.85 })
+    cushion.position.set(36.0, 0.26, -23.0)
+    cushion.raycast = () => {}
+    beachGroup.add(cushion)
+
+    // Payung pantai besar bergaris
+    const umbrellaPole = cyl(0.04, 0.04, 2.6, 0xd4a373, 8)
+    umbrellaPole.position.set(37.2, 1.3, -23.0)
+    umbrellaPole.raycast = () => {}
+    beachGroup.add(umbrellaPole)
+
+    const umbrellaCanopy = new THREE.Mesh(new THREE.ConeGeometry(1.6, 0.7, 10), stdMat(0x06b6d4, { rough: 0.8 }))
+    umbrellaCanopy.position.set(37.2, 2.6, -23.0)
+    umbrellaCanopy.raycast = () => {}
+    beachGroup.add(umbrellaCanopy)
+
+    const bather3 = createBeachHuman({
+      pose: 'lounging',
+      hat: 'straw',
+      shirtColor: 0xf8fafc,
+      pantsColor: 0x0284c7,
+    })
+    bather3.position.set(36.0, 0.1, -23.0)
+    beachGroup.add(bather3)
+    beachAvatars.push({ group: bather3, baseY: 0.1, phase: 3.4 })
+
+    // Sunbather 4: Berjemur santai di pasir pantai utara
+    const towel4 = box(1.0, 0.02, 2.0, 0xf43f5e, { rough: 0.9 })
+    towel4.position.set(-16.0, -0.035, -36.0)
+    towel4.raycast = () => {}
+    beachGroup.add(towel4)
+
+    const bather4 = createBeachHuman({
+      pose: 'lying_back',
+      hat: 'sunglasses',
+      pantsColor: 0x7c3aed,
+    })
+    bather4.position.set(-16.0, -0.035, -36.0)
+    beachGroup.add(bather4)
+    beachAvatars.push({ group: bather4, baseY: -0.035, phase: 1.2 })
+  }
 
   /* --------------------------------------------------------- living street */
   const ROW_SPEED = [1.55, 1.05] as const
@@ -4992,11 +5436,39 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
       v.obj.position.z = v.z
     }
 
-    // Animasi ayunan ombak perahu nelayan (Heave, Roll & Pitch)
+    // Animasi perahu nelayan berlayar dinamis di laut & ayunan ombak (Heave, Roll & Pitch)
     for (const b of fishingBoats) {
-      b.group.position.y = b.baseY + Math.sin(t * 1.5 + b.phase) * 0.045
-      b.group.rotation.z = Math.sin(t * 1.8 + b.phase) * 0.038
-      b.group.rotation.x = Math.cos(t * 1.3 + b.phase) * 0.022
+      if (b.rangeX > 0) {
+        // Kapal yang berlayar aktif / patroli di lautan
+        const cycle = t * b.speedX + b.phase
+        b.group.position.x = b.baseX + Math.sin(cycle) * b.rangeX
+        const dir = Math.cos(cycle)
+        // Haluan kapal menghadap arah berlayar + membelok halus
+        b.group.rotation.y = b.rotY + (dir >= 0 ? 0 : Math.PI)
+        // Efek banking perahu saat berbelok dan terayun ombak
+        b.group.rotation.z = Math.sin(t * 1.8 + b.phase) * 0.045 - (dir > 0 ? 0.025 : -0.025)
+      } else {
+        // Kapal yang berlabuh / memancing: drifting lembut mengikuti arus laut
+        b.group.position.x = b.baseX + Math.sin(t * 0.35 + b.phase) * 0.35
+        b.group.position.z = b.baseZ + Math.cos(t * 0.28 + b.phase) * 0.3
+        b.group.rotation.z = Math.sin(t * 1.8 + b.phase) * 0.04
+      }
+      if (b.rangeZ > 0) {
+        b.group.position.z = b.baseZ + Math.cos(t * b.speedZ + b.phase) * b.rangeZ
+      }
+      // Ombak laut naik turun (heave) dan anggukan haluan (pitch)
+      b.group.position.y = b.baseY + Math.sin(t * 1.5 + b.phase) * 0.05
+      b.group.rotation.x = Math.cos(t * 1.25 + b.phase) * 0.028
+    }
+
+    // Animasi joran pancing melengkung berayun ditarik ombak/ikan
+    for (const r of fishingRods) {
+      r.rod.rotation.z = Math.sin(t * 2.2 + r.phase) * 0.04
+    }
+
+    // Animasi bernapas halus / rileks avatar yang sedang berjemur dan memancing di pantai
+    for (const a of beachAvatars) {
+      a.group.position.y = a.baseY + Math.sin(t * 1.6 + a.phase) * 0.007
     }
   }
 
