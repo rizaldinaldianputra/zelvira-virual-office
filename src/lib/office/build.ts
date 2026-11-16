@@ -1388,25 +1388,6 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     header.raycast = () => {}
     group.add(header)
 
-    // 3. Mullion vertikal aluminium arsitektural tiap ~3.4 m (hanya lantai dasar, lantai 1 & 2 open panoramic glass)
-    if (yFloor === 0) {
-      const mullionCount = Math.max(1, Math.round(len / 3.4))
-      const step = len / mullionCount
-      for (let i = 0; i <= mullionCount; i++) {
-        const mx = horizontal ? Math.min(x1, x2) + i * step : cx
-        const mz = horizontal ? cz : Math.min(z1, z2) + i * step
-        const mullion = box(
-          horizontal ? 0.09 : WALL_T + 0.05,
-          glassH,
-          horizontal ? WALL_T + 0.05 : 0.09,
-          0x0f172a,
-          { metal: 0.8, rough: 0.25 },
-        )
-        mullion.position.set(mx, yFloor + CUT_H + glassH / 2, mz)
-        mullion.raycast = () => {}
-        group.add(mullion)
-      }
-    }
   }
 
   const shell = (x1: number, z1: number, x2: number, z2: number) => {
@@ -1436,20 +1417,6 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
   shell(DOOR.x + 2.2, HALF_D, 14, HALF_D)
   addFullHeightFacade(DOOR.x + 2.2, HALF_D, 14, HALF_D, 0)
 
-  // 4 Pilar Sudut Struktural Bangunan (Lantai 1 dan lantai 2 open space bebas tiang)
-  for (const [colX, colZ] of [
-    [-HALF_W, -HALF_D],
-    [HALF_W, -HALF_D],
-    [-HALF_W, HALF_D],
-    [HALF_W, HALF_D],
-  ] as const) {
-    const col3D = box(0.55, LEVEL_H * 3, 0.55, 0x1e293b, { metal: 0.7, rough: 0.3 })
-    col3D.position.set(colX, (LEVEL_H * 3) / 2, colZ)
-    col3D.castShadow = true
-    col3D.receiveShadow = true
-    col3D.raycast = () => {}
-    group.add(col3D)
-  }
   // entrance transom (this one is full height: it is the doorway)
   {
     const m = box(4.4, 0.5, WALL_T, 0xe8eef2, { rough: 0.6 })
@@ -1462,14 +1429,39 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     exteriorDoorLogo.name = 'office-exterior-logo-entrance'
     group.add(exteriorDoorLogo)
   }
-  // courtyard-facing walls, SPLIT AT EVERY DOORWAY, from the same shared list the
-  // collision footprints use. Building a solid wall here and then adding door jambs
-  // on top of it sealed every ground-floor room in the render while leaving them
-  // walkable in the nav grid — the "rooms with no doors" bug.
-  for (const s of courtyardWallSegments()) shell(s.x1, s.z1, s.x2, s.z2)
-  // lobby's courtyard side: two returns and a wide opening
+  // courtyard-facing walls, tertutup kaca arsitektural penuh dari lantai 1 ke lantai 2
+  for (const s of courtyardWallSegments()) {
+    shell(s.x1, s.z1, s.x2, s.z2)
+    addFullHeightFacade(s.x1, s.z1, s.x2, s.z2, 0)
+  }
+  // lobby's courtyard side: dinding kaca menghadap courtyard
   shell(-14, 16, -4, 16)
+  addFullHeightFacade(-14, 16, -4, 16, 0)
   shell(4, 16, 14, 16)
+  addFullHeightFacade(4, 16, 14, 16, 0)
+
+  // Portal Kaca Geser Lobi ke Courtyard (Bebas tiang, full glass transom)
+  {
+    const lobbyGlassHeader = box(8.2, 0.22, 0.12, 0x1e293b, { metal: 0.7, rough: 0.3 })
+    lobbyGlassHeader.position.set(0, LEVEL_H - 0.11, 16)
+    lobbyGlassHeader.raycast = () => {}
+    group.add(lobbyGlassHeader)
+
+    const lobbyDoorGlass = new THREE.Mesh(
+      new THREE.BoxGeometry(7.8, LEVEL_H - CUT_H, 0.04),
+      new THREE.MeshPhysicalMaterial({
+        color: 0x90cdf4,
+        roughness: 0.06,
+        metalness: 0.1,
+        transmission: 0.88,
+        transparent: true,
+        opacity: 0.45,
+      }),
+    )
+    lobbyDoorGlass.position.set(0, CUT_H + (LEVEL_H - CUT_H) / 2, 16)
+    lobbyDoorGlass.raycast = () => {}
+    group.add(lobbyDoorGlass)
+  }
   // division partitions (full length, cut height)
   shell(-HALF_W, -6.9, -14, -6.9)
   shell(-HALF_W, 6.9, -14, 6.9)
@@ -1778,34 +1770,21 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     }
   }
 
-  /* --------------------------------------------------- walkway (covered) -- */
-  // A canopy strip along the courtyard's three building sides, so moving between
-  // rooms does not mean walking in the rain. Columns only — no walls.
+  /* --------------------------------------------------- walkway (cantilevered) -- */
+  // Selasar beratap kantilever kaca & baja elegan mengelilingi courtyard tanpa tiang
   {
     const c = BARS.courtyard
     const off = 2.0
-    for (const [x, z] of [
-      // west edge
-      [c.x1 + off, -7], [c.x1 + off, -1], [c.x1 + off, 5], [c.x1 + off, 11], [c.x1 + off, 15],
-      // east edge
-      [c.x2 - off, -7], [c.x2 - off, -1], [c.x2 - off, 5], [c.x2 - off, 11], [c.x2 - off, 15],
-      // south edge (lobby side)
-      [-9, c.z2 - off], [-3, c.z2 - off], [3, c.z2 - off], [9, c.z2 - off],
-    ] as const) {
-      const post = cyl(0.1, 0.1, LEVEL_H, 0xe6e2d8, 10)
-      post.position.set(x, LEVEL_H / 2, z)
-      post.castShadow = true
-      group.add(post)
-    }
-    // canopy strips
+    // canopy strips kantilever mengambang tanpa tiang di permukaan lantai
     for (const [cx, cz, cw, cd] of [
       [c.x1 + off, 4, 3.2, c.z2 - c.z1],
       [c.x2 - off, 4, 3.2, c.z2 - c.z1],
       [0, c.z2 - off, c.x2 - c.x1, 3.2],
     ] as const) {
-      const roof = box(cw, 0.16, cd, 0xe8eef2, { rough: 0.85 })
+      const roof = box(cw, 0.16, cd, 0x1e293b, { metal: 0.6, rough: 0.35 })
       roof.position.set(cx, LEVEL_H - 0.08, cz)
       roof.castShadow = true
+      roof.raycast = () => {}
       group.add(roof)
     }
   }
