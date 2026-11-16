@@ -182,8 +182,8 @@ function logoTexture(): THREE.Texture {
 function createWallLogo(w = 2.4, h = 0.71, illuminated = true, haloColor = 0xf59e0b): THREE.Group {
   const g = new THREE.Group()
 
-  // Acrylic dark mounting backplate
-  const backplate = box(w + 0.16, h + 0.16, 0.03, 0x070b14, { rough: 0.25, metal: 0.3 })
+  // Acrylic mounting backplate - warna lantai grey
+  const backplate = box(w + 0.16, h + 0.16, 0.03, 0x9aa0a4, { rough: 0.25, metal: 0.3 })
   backplate.castShadow = true
   g.add(backplate)
 
@@ -779,8 +779,6 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
   let tvIdleIntensity = 0.6
   /** The bar and plates resting in the rack's hooks, hidden while somebody benches. */
   const rackBarParts: THREE.Mesh[] = []
-  /** Tiang lampu jalan panjang yang menyala saat malam dan mati saat siang */
-  const tallLamps: { lens: THREE.Mesh; light: THREE.SpotLight }[] = []
   let pal: Palette = paletteFor(hour)
   const disposables: { dispose(): void }[] = []
   const track = <T extends { dispose(): void }>(t: T): T => {
@@ -1618,24 +1616,24 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
       windowGlass.raycast = () => {}
       group.add(windowGlass)
 
-      // 2. Balok sill bawah lantai 1
-      const botSill = box(w, 0.08, 0.12, 0x1e293b, { metal: 0.7, rough: 0.3 })
+      // 2. Balok sill bawah lantai 1 - warna lantai grey
+      const botSill = box(w, 0.08, 0.12, 0x9aa0a4, { metal: 0.6, rough: 0.4 })
       botSill.position.set(mid, LEVEL_H + 0.04, -9)
       botSill.castShadow = false
       botSill.receiveShadow = false
       botSill.raycast = () => {}
       group.add(botSill)
 
-      // 3. Balok spandrel / transom atas di bawah lantai 2
-      const topBeam = box(w, 0.16, 0.14, 0x1e293b, { metal: 0.7, rough: 0.3 })
+      // 3. Balok spandrel / transom atas di bawah lantai 2 - warna lantai grey
+      const topBeam = box(w, 0.16, 0.14, 0x9aa0a4, { metal: 0.6, rough: 0.4 })
       topBeam.position.set(mid, LEVEL2_Y - 0.08, -9)
       topBeam.castShadow = false
       topBeam.receiveShadow = false
       topBeam.raycast = () => {}
       group.add(topBeam)
 
-      // 4. Transom horizontal tengah (kaca open panoramic tanpa tiang vertikal)
-      const midTransom = box(w, 0.06, 0.08, 0x1e293b, { metal: 0.7, rough: 0.3 })
+      // 4. Transom horizontal tengah - warna lantai grey
+      const midTransom = box(w, 0.06, 0.08, 0x9aa0a4, { metal: 0.6, rough: 0.4 })
       midTransom.position.set(mid, LEVEL_H + 1.05, -9)
       midTransom.castShadow = false
       midTransom.receiveShadow = false
@@ -1646,8 +1644,8 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     // Portal Pintu Masuk Kaca Eksekutif di Puncak Tangga (antara gap.x1 dan gap.x2)
     const portalW = gap.x2 - gap.x1
     const portalMidX = (gap.x1 + gap.x2) / 2
-    // Balok kusen atas pintu masuk
-    const portalHeader = box(portalW + 0.3, 0.2, 0.16, 0x1e293b, { metal: 0.8, rough: 0.25 })
+    // Balok kusen atas pintu masuk - warna lantai grey
+    const portalHeader = box(portalW + 0.3, 0.2, 0.16, 0x9aa0a4, { metal: 0.7, rough: 0.35 })
     portalHeader.position.set(portalMidX, LEVEL2_Y - 0.1, -9)
     portalHeader.castShadow = false
     portalHeader.receiveShadow = false
@@ -1792,13 +1790,13 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
   {
     const c = BARS.courtyard
     const off = 2.0
-    // canopy strips kantilever mengambang tanpa tiang di permukaan lantai
+    // canopy strips kantilever mengambang tanpa tiang di permukaan lantai - warna lantai grey
     for (const [cx, cz, cw, cd] of [
       [c.x1 + off, 4, 3.2, c.z2 - c.z1],
       [c.x2 - off, 4, 3.2, c.z2 - c.z1],
       [0, c.z2 - off, c.x2 - c.x1, 3.2],
     ] as const) {
-      const roof = box(cw, 0.16, cd, 0x1e293b, { metal: 0.6, rough: 0.35 })
+      const roof = box(cw, 0.16, cd, 0x9aa0a4, { metal: 0.5, rough: 0.4 })
       roof.position.set(cx, LEVEL_H - 0.08, cz)
       roof.castShadow = true
       roof.raycast = () => {}
@@ -1823,8 +1821,8 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     const deckMidX = (deckX1 + deckX2) / 2
     const deckMidZ = (n.z1 + n.z2) / 2
 
-    // Slab lantai dasar lantai 3
-    const l2Slab = box(deckW, 0.18, deckD, 0x1e2530, { rough: 0.85 })
+    // Slab lantai dasar lantai 3 - warna lantai grey
+    const l2Slab = box(deckW, 0.18, deckD, 0x9aa0a4, { rough: 0.85 })
     l2Slab.position.set(deckMidX, LEVEL2_Y - 0.09, deckMidZ)
     l2Slab.receiveShadow = true
     group.add(l2Slab)
@@ -1952,11 +1950,11 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     }
 
     // 6. Fasilitas VIP Penthouse Sky Lounge
-    // Sofa L-Shape kontemporer mewah
-    const sofa1 = new THREE.Mesh(rbox(3.4, 0.45, 1.3, 0.06), stdMat(0x1e293b, { rough: 0.75 }))
+    // Sofa L-Shape kontemporer warna abu-abu lantai
+    const sofa1 = new THREE.Mesh(rbox(3.4, 0.45, 1.3, 0.06), stdMat(0x9aa0a4, { rough: 0.75 }))
     sofa1.position.set(6.0, LEVEL2_Y + 0.22, -12.8)
     group.add(sofa1)
-    const back1 = new THREE.Mesh(rbox(3.4, 0.48, 0.25, 0.05), stdMat(0x1e293b, { rough: 0.75 }))
+    const back1 = new THREE.Mesh(rbox(3.4, 0.48, 0.25, 0.05), stdMat(0x9aa0a4, { rough: 0.75 }))
     back1.position.set(6.0, LEVEL2_Y + 0.55, -13.4)
     group.add(back1)
 
@@ -1968,13 +1966,13 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     cRim.position.set(6.0, LEVEL2_Y + 0.38, -11.0)
     group.add(cRim)
 
-    // Sofa santai sayap timur
-    const sofa2 = new THREE.Mesh(rbox(1.3, 0.45, 3.2, 0.06), stdMat(0x1e293b, { rough: 0.75 }))
+    // Sofa santai sayap timur - warna lantai grey
+    const sofa2 = new THREE.Mesh(rbox(1.3, 0.45, 3.2, 0.06), stdMat(0x9aa0a4, { rough: 0.75 }))
     sofa2.position.set(17.0, LEVEL2_Y + 0.22, -15.0)
     group.add(sofa2)
 
-    // Sky Bar Island counter mewah
-    const barIsland = box(4.0, 1.05, 0.9, 0x0f172a, { rough: 0.3, metal: 0.6 })
+    // Sky Bar Island counter - marmer bersih cerah
+    const barIsland = box(4.0, 1.05, 0.9, 0xe2e8f0, { rough: 0.3, metal: 0.4 })
     barIsland.position.set(11.0, LEVEL2_Y + 0.52, -18.2)
     group.add(barIsland)
     const barTop = new THREE.Mesh(rbox(4.1, 0.08, 1.0, 0.03), woodMat)
@@ -1991,14 +1989,14 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
       const stool = cyl(0.18, 0.18, 0.75, 0xd4af37, 12, 0.8)
       stool.position.set(bx, LEVEL2_Y + 0.375, -17.0)
       group.add(stool)
-      const seat = cyl(0.22, 0.22, 0.08, 0x1e293b, 12, 0.2)
+      const seat = cyl(0.22, 0.22, 0.08, 0x9aa0a4, 12, 0.4)
       seat.position.set(bx, LEVEL2_Y + 0.79, -17.0)
       group.add(seat)
     }
 
-    // Tanaman rooftop eksotis dalam planter modern
+    // Tanaman rooftop eksotis dalam planter modern abu-abu
     for (const px of [0.5, 12.0, 22.0]) {
-      const planter = box(1.6, 0.55, 0.55, 0x334155, { rough: 0.7 })
+      const planter = box(1.6, 0.55, 0.55, 0x9aa0a4, { rough: 0.7 })
       planter.position.set(px, LEVEL2_Y + 0.28, -9.45)
       group.add(planter)
       for (let i = 0; i < 2; i++) {
@@ -2021,7 +2019,7 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     terraceLogo.name = 'office-penthouse-terrace-logo'
     group.add(terraceLogo)
 
-    // 8. MAHKOTA ATAP PERGOLA LANTAI 3 (Roof Crown at 10.2 m)
+    // 8. MAHKOTA ATAP PERGOLA LANTAI 3 (Roof Crown at 10.2 m) - warna lantai grey
     // Sisi selatan terbuka di x: -15 sampai -5 untuk sky atrium void di atas ruang Rinjani
     for (const [px, pz, pw, pd] of [
       [0, -HALF_D - 0.3, HALF_W * 2 + 0.6, 0.6], // north outer crown
@@ -2030,7 +2028,7 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
       [-HALF_W - 0.3, (n.z1 + n.z2) / 2, 0.6, n.z2 - n.z1 + 0.6], // west outer crown
       [HALF_W + 0.3, (n.z1 + n.z2) / 2, 0.6, n.z2 - n.z1 + 0.6], // east outer crown
     ] as const) {
-      const crown = box(pw, 0.55, pd, 0x1e293b, { rough: 0.35, metal: 0.7 })
+      const crown = box(pw, 0.55, pd, 0x9aa0a4, { rough: 0.4, metal: 0.5 })
       crown.position.set(px, LEVEL3_Y + 0.35, pz)
       crown.castShadow = true
       group.add(crown)
@@ -2053,23 +2051,23 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
       const screenH = 4.6
       const screenD = 0.65
 
-      // Tiang penopang baja truss di atap gedung
+      // Tiang penopang baja truss di atap gedung - warna lantai grey
       for (const px of [-6.0, 0, 6.0]) {
-        const pylon = box(0.35, 3.2, 0.35, 0x1e293b, { metal: 0.8, rough: 0.25 })
+        const pylon = box(0.35, 3.2, 0.35, 0x9aa0a4, { metal: 0.6, rough: 0.35 })
         pylon.position.set(px, -1.4, 0)
         pylon.castShadow = true
         pylon.raycast = () => {}
         jumbotron.add(pylon)
 
-        const truss = box(0.18, 2.6, 0.18, 0x334155, { metal: 0.8, rough: 0.3 })
+        const truss = box(0.18, 2.6, 0.18, 0x9aa0a4, { metal: 0.6, rough: 0.35 })
         truss.position.set(px, -1.4, -0.6)
         truss.rotation.x = -0.3
         truss.raycast = () => {}
         jumbotron.add(truss)
       }
 
-      // Kabinet titanium jumbotron LED
-      const cabinet = box(screenW + 0.6, screenH + 0.6, screenD, 0x090d16, { metal: 0.8, rough: 0.25 })
+      // Kabinet titanium jumbotron LED - warna lantai grey
+      const cabinet = box(screenW + 0.6, screenH + 0.6, screenD, 0x9aa0a4, { metal: 0.6, rough: 0.35 })
       cabinet.castShadow = true
       cabinet.raycast = () => {}
       jumbotron.add(cabinet)
@@ -3245,8 +3243,8 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     receptionLogo.name = 'office-reception-counter-logo'
     group.add(receptionLogo)
 
-    // 1b. Feature wall dan logo Zelvira di belakang meja resepsionis
-    const receptionBackdrop = box(3.6, 2.5, 0.08, 0x0b1320, { rough: 0.4, metal: 0.3 })
+    // 1b. Feature wall dan logo Zelvira di belakang meja resepsionis - warna lantai grey
+    const receptionBackdrop = box(3.6, 2.5, 0.08, 0x9aa0a4, { rough: 0.4, metal: 0.3 })
     receptionBackdrop.position.set(RECEPTION.x, 1.45, RECEPTION.z - 1.7)
     group.add(receptionBackdrop)
 
@@ -3337,8 +3335,8 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     nameFace.name = 'office-name-face'
     group.add(nameFace)
 
-    // Emblem logo Zelvira di atas papan nama kantor
-    const logoPlate = box(2.4, 1.6, 0.1, 0x1e293b, { rough: 0.5, metal: 0.3 })
+    // Emblem logo Zelvira di atas papan nama kantor - warna lantai grey
+    const logoPlate = box(2.4, 1.6, 0.1, 0x9aa0a4, { rough: 0.4, metal: 0.4 })
     logoPlate.position.set(DOOR.x, 4.8, HALF_D + 0.08)
     logoPlate.name = 'office-logo-plate'
     group.add(logoPlate)
@@ -3352,8 +3350,8 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     logoFace.position.set(DOOR.x, 4.8, HALF_D + 0.15)
     logoFace.name = 'office-zelvira-logo-entrance'
     group.add(logoFace)
-    // Kanopi kantilever mengambang di atas pintu masuk utama (bebas tiang di permukaan lantai 1 / tanah)
-    const canopy = box(7.0, 0.22, 2.6, 0x1e293b, { metal: 0.7, rough: 0.3 })
+    // Kanopi kantilever mengambang di atas pintu masuk utama - warna lantai grey
+    const canopy = box(7.0, 0.22, 2.6, 0x9aa0a4, { metal: 0.5, rough: 0.4 })
     canopy.position.set(DOOR.x, 3.1, HALF_D + 1.3)
     canopy.castShadow = true
     canopy.raycast = () => {}
@@ -3831,19 +3829,19 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
   const pavementBump = track(bumpFrom(pavementTex, 0.5))
 
   const GROUND_EXTENT = 220
-  // Area paling luar abu-abu jalan raya (grey road/asphalt tone), seragam tanpa warna hitam/kusam
-  const earthTex = track(earthTexture('#525861', '#454a52', '#5e6570'))
+  // Area paling luar dan pojok-pojok abu-abu senada warna lantai grey (matching pavement grey)
+  const earthTex = track(earthTexture('#9aa0a4', '#8b9195', '#a5abad'))
   earthTex.repeat.set(GROUND_EXTENT / 12, GROUND_EXTENT / 12)
-  const earthBump = track(bumpFrom(earthTex, 0.4))
+  const earthBump = track(bumpFrom(earthTex, 0.3))
   earthBump.repeat.copy(earthTex.repeat)
 
   const earth = new THREE.Mesh(
     new THREE.PlaneGeometry(GROUND_EXTENT, GROUND_EXTENT),
     new THREE.MeshStandardMaterial({
-      color: 0x525861,
+      color: 0x9aa0a4,
       map: earthTex,
       bumpMap: earthBump,
-      bumpScale: 0.35,
+      bumpScale: 0.25,
       roughness: 0.95,
     }),
   )
@@ -3928,7 +3926,6 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     [48, -20.0, -Math.PI / 2],
   ]
 
-  const isNightInit = hour >= 18 || hour < 6
   for (const [lx, lz, rotY] of lampPositions) {
     const lampGroup = new THREE.Group()
     lampGroup.position.set(lx, 0, lz)
@@ -3946,40 +3943,17 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     arm.position.set(0, poleH - 0.05, 0.6)
     lampGroup.add(arm)
 
-    // Rumah lampu LED modern
-    const head = box(0.42, 0.12, 0.8, 0x334155, { metal: 0.6, rough: 0.3 })
+    // Rumah lampu LED modern - warna lantai grey
+    const head = box(0.42, 0.12, 0.8, 0x9aa0a4, { metal: 0.6, rough: 0.4 })
     head.position.set(0, poleH - 0.08, 1.2)
     lampGroup.add(head)
 
-    // Lensa LED pendar cahaya
-    const lensMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      emissive: isNightInit ? 0xffeaad : 0x000000,
-      emissiveIntensity: isNightInit ? 2.5 : 0.0,
-      roughness: 0.2,
-    })
-    const lens = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.03, 0.68), lensMat)
+    // Lensa LED putih bersih (ringan, tanpa spotlight berat)
+    const lens = box(0.34, 0.03, 0.68, 0xf8fafc, { rough: 0.3 })
     lens.position.set(0, poleH - 0.15, 1.2)
     lampGroup.add(lens)
 
-    // Lampu sorot SpotLight mengarah ke tanah
-    const spot = new THREE.SpotLight(
-      0xfff1cf,
-      isNightInit ? 2.2 : 0.0,
-      24,
-      Math.PI / 3.2,
-      0.5,
-      1.2,
-    )
-    spot.position.set(0, poleH - 0.2, 1.2)
-    const spotTarget = new THREE.Object3D()
-    spotTarget.position.set(0, 0, 1.2)
-    lampGroup.add(spotTarget)
-    spot.target = spotTarget
-    lampGroup.add(spot)
-
     streetGroup.add(lampGroup)
-    tallLamps.push({ lens, light: spot })
   }
 
   // Outdoor Zelvira monument pylon sign on the front boulevard outside the building
@@ -4371,7 +4345,7 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     [-42, -43, 1.6, 0x475569],
     [-30, -45, 2.1, 0x334155],
     [-12, -44, 1.4, 0x475569],
-    [8, -46, 2.4, 0x1e293b],
+    [8, -46, 2.4, 0x64748b],
     [22, -44, 1.8, 0x334155],
     [38, -45, 2.0, 0x475569],
     [52, -43, 1.5, 0x334155],
@@ -4468,7 +4442,7 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     const netZ1 = -courtW / 2 - 0.7
     const netZ2 = courtW / 2 + 0.7
     for (const pz of [netZ1, netZ2]) {
-      const pole = cyl(0.065, 0.065, 3.1, 0x1e293b, 8, 0.4)
+      const pole = cyl(0.065, 0.065, 3.1, 0x9aa0a4, 8, 0.4)
       pole.position.set(0, 1.55, pz)
       pole.castShadow = true
       pole.raycast = () => {}
@@ -4616,7 +4590,7 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     }
 
     // Papan Nama Cafe Gantung "ZELVIRA BEACH CAFE"
-    const signBoard = box(2.8, 0.55, 0.08, 0x1e293b, { rough: 0.6 })
+    const signBoard = box(2.8, 0.55, 0.08, 0x9aa0a4, { rough: 0.6 })
     signBoard.position.set(0, 2.7, -2.2)
     signBoard.raycast = () => {}
     cafeGroup.add(signBoard)
@@ -4684,7 +4658,7 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     }
 
     // DJ Booth & Speaker Sound System Beach Party
-    const djTable = box(1.8, 0.9, 0.75, 0x0f172a, { metal: 0.6, rough: 0.3 })
+    const djTable = box(1.8, 0.9, 0.75, 0x9aa0a4, { metal: 0.6, rough: 0.3 })
     djTable.position.set(0, 0.55, 3.2)
     djTable.castShadow = true
     djTable.raycast = () => {}
@@ -5501,23 +5475,11 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
   /* ---------------------------------------------------------- apply state -- */
   function applyPalette(h: number) {
     pal = paletteFor(h)
-    const night = h >= 18 || h < 6
-    sun.intensity = night ? 1.2 : 2.6
-    sun.color.setHex(night ? 0xc9d8ee : 0xfff4e2)
-    fill.intensity = night ? 0.35 : 0.45
-    for (const l of lamps) l.intensity = night ? 0.85 : 0.25
-    for (const s of streaks) (s.material as THREE.MeshStandardMaterial).emissiveIntensity = night ? 1.5 : 0.85
-    for (const tl of tallLamps) {
-      if (night) {
-        ;(tl.lens.material as THREE.MeshStandardMaterial).emissive.setHex(0xffeaad)
-        ;(tl.lens.material as THREE.MeshStandardMaterial).emissiveIntensity = 2.5
-        tl.light.intensity = 2.2
-      } else {
-        ;(tl.lens.material as THREE.MeshStandardMaterial).emissive.setHex(0x000000)
-        ;(tl.lens.material as THREE.MeshStandardMaterial).emissiveIntensity = 0.0
-        tl.light.intensity = 0.0
-      }
-    }
+    sun.intensity = 2.6
+    sun.color.setHex(0xfff4e2)
+    fill.intensity = 0.45
+    for (const l of lamps) l.intensity = 0.25
+    for (const s of streaks) (s.material as THREE.MeshStandardMaterial).emissiveIntensity = 0.85
   }
 
   function dispose() {

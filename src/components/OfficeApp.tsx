@@ -45,7 +45,6 @@ export default function OfficeApp() {
   const selected = useOffice((s) => s.selectedAgent)
   const loadTasks = useOffice((s) => s.load)
 
-  const [isNight, setIsNight] = useState(false)
   const sceneRef = useRef<OfficeScene | null>(null)
   const rootRef = useRef<HTMLDivElement>(null)
   const barRef = useRef<HTMLElement>(null)
@@ -136,12 +135,6 @@ export default function OfficeApp() {
   const done = live.filter((t) => t.status === 'done').length
   const pct = live.length ? Math.round((done / live.length) * 100) : 0
 
-  const handleToggleDayNight = () => {
-    if (!sceneRef.current) return
-    const next = sceneRef.current.toggleDayNight()
-    setIsNight(next === 'night')
-  }
-
   return (
     <div ref={rootRef} className="relative h-dvh w-full overflow-hidden bg-[#0f1418]">
       <main className="vp-stage">
@@ -149,7 +142,6 @@ export default function OfficeApp() {
           <Scene3D
             onScene={(s) => {
               sceneRef.current = s
-              if (s) setIsNight(s.isNight())
             }}
             onDummy={() => setAgentOpen(true)}
             onBoard={() => setBoardOpen(true)}
@@ -166,25 +158,7 @@ export default function OfficeApp() {
       <header ref={barRef} className="vp-topbar">
         {/* Brand logo & Live status */}
         <div className="vp-topbar-brand flex items-center gap-3">
-          <div className="flex items-center gap-2.5">
-            <img
-              src="/logo.png"
-              alt="Zelvira Logo"
-              onError={(e) => {
-                e.currentTarget.src = LOGO_DATA_URI
-              }}
-              className="h-8 w-auto object-contain drop-shadow-[0_0_10px_rgba(56,189,248,0.5)] select-none"
-            />
-            <div className="flex flex-col leading-none">
-              <span className="text-sm font-extrabold tracking-wider text-white">
-                ZELVIRA <span className="text-sky-400">OFFICE</span>
-              </span>
-              <span className="text-[9px] font-semibold tracking-widest text-slate-400 uppercase">
-                Virtual Headquarters
-              </span>
-            </div>
-          </div>
-
+          
           <div className="hidden sm:block h-5 w-px bg-slate-700/60" />
 
           <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-slate-800/80 border border-slate-700/60 shadow-inner">
@@ -312,25 +286,6 @@ export default function OfficeApp() {
         {/* Saklar tampilan sengaja di luar <nav>: di HP baris tombol bisa digeser ke
             samping, dan pilihan 3D/Kanban/Sprite tidak boleh ikut hilang dari layar. */}
         <div className="flex items-center gap-2">
-          {view === '3d' && (
-            <button
-              className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg bg-slate-800/80 border border-slate-700/80 hover:border-slate-500 text-slate-200 hover:text-white transition-all shadow-sm"
-              onClick={handleToggleDayNight}
-              title={isNight ? 'Beralih ke Siang (Matahari, Lampu Padam)' : 'Beralih ke Malam (Bulan & Bintang, Lampu Menyala)'}
-            >
-              {isNight ? (
-                <>
-                  <span className="text-amber-300">🌙</span>
-                  <span className="hidden sm:inline text-indigo-300">Malam</span>
-                </>
-              ) : (
-                <>
-                  <span className="text-amber-400">☀️</span>
-                  <span className="hidden sm:inline text-amber-300">Siang</span>
-                </>
-              )}
-            </button>
-          )}
           <div className={`vp-seg vp-topbar-view ${view === 'sprite' ? 'vp-sprite-toggle' : ''}`}>
             <button className={view === '3d' ? 'on' : ''} onClick={() => setView('3d')}>3D</button>
             <button className={view === '2d' ? 'on' : ''} onClick={() => setView('2d')}>Kanban</button>
