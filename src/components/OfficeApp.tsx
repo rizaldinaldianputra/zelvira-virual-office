@@ -55,6 +55,24 @@ export default function OfficeApp() {
   const [boardOpen, setBoardOpen] = useState(false)
   const [nameOpen, setNameOpen] = useState(false)
   const [workflowOpen, setWorkflowOpen] = useState(false)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+
+  useEffect(() => {
+    const handleFsChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement))
+    }
+    document.addEventListener('fullscreenchange', handleFsChange)
+    return () => document.removeEventListener('fullscreenchange', handleFsChange)
+  }, [])
+
+  const toggleFullscreen = () => {
+    if (typeof document === 'undefined') return
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {})
+    } else {
+      document.exitFullscreen().catch(() => {})
+    }
+  }
   const loadOffice = useOffice((s) => s.loadOffice)
 
   useEffect(() => startPolling(), [])
@@ -176,10 +194,28 @@ export default function OfficeApp() {
         </nav>
         {/* Saklar tampilan sengaja di luar <nav>: di HP baris tombol bisa digeser ke
             samping, dan pilihan 3D/Kanban/Sprite tidak boleh ikut hilang dari layar. */}
-        <div className={`vp-seg vp-topbar-view ${view === 'sprite' ? 'vp-sprite-toggle' : ''}`}>
-          <button className={view === '3d' ? 'on' : ''} onClick={() => setView('3d')}>3D</button>
-          <button className={view === '2d' ? 'on' : ''} onClick={() => setView('2d')}>Kanban</button>
-          <button className={view === 'sprite' ? 'on' : ''} onClick={() => setView('sprite')}>Sprite</button>
+        <div className="flex items-center gap-2">
+          <div className={`vp-seg vp-topbar-view ${view === 'sprite' ? 'vp-sprite-toggle' : ''}`}>
+            <button className={view === '3d' ? 'on' : ''} onClick={() => setView('3d')}>3D</button>
+            <button className={view === '2d' ? 'on' : ''} onClick={() => setView('2d')}>Kanban</button>
+            <button className={view === 'sprite' ? 'on' : ''} onClick={() => setView('sprite')}>Sprite</button>
+          </div>
+          <button
+            className="vp-btn vp-btn-ghost flex h-8 w-8 items-center justify-center p-0 text-slate-300 hover:text-white"
+            title={isFullscreen ? 'Keluar Layar Penuh (Esc)' : 'Layar Penuh (Full Screen)'}
+            aria-label="Layar Penuh"
+            onClick={toggleFullscreen}
+          >
+            {isFullscreen ? (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3" />
+              </svg>
+            ) : (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
+              </svg>
+            )}
+          </button>
         </div>
       </header>
 

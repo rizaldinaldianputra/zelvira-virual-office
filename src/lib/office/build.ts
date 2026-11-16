@@ -213,6 +213,58 @@ function createWallLogo(w = 2.4, h = 0.71, illuminated = true, haloColor = 0xf59
   return g
 }
 
+function zelviraOfficeRooftopTexture(): THREE.Texture {
+  return canvasTex(1024, (c, s) => {
+    // 1024x512 widescreen billboard texture
+    const bg = c.createLinearGradient(0, 0, s, 0)
+    bg.addColorStop(0, '#030712')
+    bg.addColorStop(0.2, '#0f172a')
+    bg.addColorStop(0.8, '#0f172a')
+    bg.addColorStop(1, '#030712')
+    c.fillStyle = bg
+    c.fillRect(0, 0, s, s)
+
+    // Cyan & Gold futuristic LED neon border
+    c.strokeStyle = '#0284c7'
+    c.lineWidth = 14
+    c.strokeRect(18, 18, s - 36, s - 36)
+    c.strokeStyle = '#f59e0b'
+    c.lineWidth = 5
+    c.strokeRect(32, 32, s - 64, s - 64)
+
+    // Stylized glowing emblem (Crown diamond)
+    c.fillStyle = '#f59e0b'
+    c.beginPath()
+    c.arc(s / 2, s / 2 - 140, 52, 0, Math.PI * 2)
+    c.fill()
+    c.fillStyle = '#0f172a'
+    c.beginPath()
+    c.arc(s / 2, s / 2 - 140, 38, 0, Math.PI * 2)
+    c.fill()
+    c.fillStyle = '#38bdf8'
+    c.beginPath()
+    c.arc(s / 2, s / 2 - 140, 22, 0, Math.PI * 2)
+    c.fill()
+
+    // Main header: "ZELVIRA"
+    c.font = '900 125px "Segoe UI", system-ui, -apple-system, sans-serif'
+    c.textAlign = 'center'
+    c.textBaseline = 'middle'
+    c.fillStyle = '#f8fafc'
+    c.fillText('ZELVIRA', s / 2, s / 2 - 15)
+
+    // Subtitle: "OFFICE"
+    c.font = '800 70px "Segoe UI", system-ui, -apple-system, sans-serif'
+    c.fillStyle = '#38bdf8'
+    c.fillText('OFFICE', s / 2, s / 2 + 100)
+
+    // Tagline: "VIRTUAL HEADQUARTERS"
+    c.font = '700 28px monospace'
+    c.fillStyle = '#f59e0b'
+    c.fillText('★ VIRTUAL HEADQUARTERS ★', s / 2, s / 2 + 185)
+  })
+}
+
 /**
  * Architectural corporate totem sign standing outside the building.
  */
@@ -2002,12 +2054,88 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
       group.add(louver)
     }
 
-    // 9. GRAND ROOFTOP CROWN LANDMARK LOGO (Logo Puncak Tertinggi Gedung Lantai 3)
-    // Menghadap langsung ke arah selatan (kamera awal dan courtyard) di puncak lantai 3
-    const penthouseCrownLogo = createWallLogo(4.8, 1.42, true, 0xf59e0b)
-    penthouseCrownLogo.position.set(6.0, LEVEL3_Y + 0.15, -8.92)
-    penthouseCrownLogo.name = 'office-rooftop-crown-landmark-logo'
-    group.add(penthouseCrownLogo)
+    // 9. JUMBO TRON ROOFTOP KORPORAT DI ATAP LANTAI 2 "ZELVIRA OFFICE"
+    {
+      const jumbotron = new THREE.Group()
+      jumbotron.position.set(6.0, LEVEL3_Y + 2.6, -8.9)
+      jumbotron.name = 'office-rooftop-jumbotron-zelvira'
+
+      const screenW = 16.0
+      const screenH = 4.6
+      const screenD = 0.65
+
+      // Tiang penopang baja truss di atap gedung
+      for (const px of [-6.0, 0, 6.0]) {
+        const pylon = box(0.35, 3.2, 0.35, 0x1e293b, { metal: 0.8, rough: 0.25 })
+        pylon.position.set(px, -1.4, 0)
+        pylon.castShadow = true
+        pylon.raycast = () => {}
+        jumbotron.add(pylon)
+
+        const truss = box(0.18, 2.6, 0.18, 0x334155, { metal: 0.8, rough: 0.3 })
+        truss.position.set(px, -1.4, -0.6)
+        truss.rotation.x = -0.3
+        truss.raycast = () => {}
+        jumbotron.add(truss)
+      }
+
+      // Kabinet titanium jumbotron LED
+      const cabinet = box(screenW + 0.6, screenH + 0.6, screenD, 0x090d16, { metal: 0.8, rough: 0.25 })
+      cabinet.castShadow = true
+      cabinet.raycast = () => {}
+      jumbotron.add(cabinet)
+
+      // Bezel LED neon toska & emas
+      const bezelTop = box(screenW + 0.7, 0.14, screenD + 0.05, 0x38bdf8, { emissive: 0x38bdf8, ei: 0.9 })
+      bezelTop.position.set(0, screenH / 2 + 0.07, 0)
+      bezelTop.raycast = () => {}
+      jumbotron.add(bezelTop)
+
+      const bezelBot = box(screenW + 0.7, 0.14, screenD + 0.05, 0xf59e0b, { emissive: 0xf59e0b, ei: 0.9 })
+      bezelBot.position.set(0, -screenH / 2 - 0.07, 0)
+      bezelBot.raycast = () => {}
+      jumbotron.add(bezelBot)
+
+      // Layar LED Jumbotron "ZELVIRA OFFICE"
+      const jumbotronTex = track(zelviraOfficeRooftopTexture())
+      const jumbotronMat = new THREE.MeshStandardMaterial({
+        map: jumbotronTex,
+        roughness: 0.15,
+        metalness: 0.1,
+        emissive: 0xffffff,
+        emissiveMap: jumbotronTex,
+        emissiveIntensity: 1.25,
+      })
+
+      // Sisi depan (menghadap selatan/courtyard dan kamera)
+      const screenFront = new THREE.Mesh(new THREE.PlaneGeometry(screenW, screenH), jumbotronMat)
+      screenFront.position.set(0, 0, screenD / 2 + 0.02)
+      screenFront.raycast = () => {}
+      jumbotron.add(screenFront)
+
+      // Sisi belakang (menghadap utara/pantai)
+      const screenBack = new THREE.Mesh(new THREE.PlaneGeometry(screenW, screenH), jumbotronMat)
+      screenBack.rotation.y = Math.PI
+      screenBack.position.set(0, 0, -screenD / 2 - 0.02)
+      screenBack.raycast = () => {}
+      jumbotron.add(screenBack)
+
+      // Lampu suar keselamatan penerbangan merah di kedua sudut atas
+      for (const bx of [-screenW / 2 - 0.2, screenW / 2 + 0.2]) {
+        const beacon = box(0.16, 0.24, 0.16, 0xef4444, { emissive: 0xef4444, ei: 1.5 })
+        beacon.position.set(bx, screenH / 2 + 0.22, 0)
+        beacon.raycast = () => {}
+        jumbotron.add(beacon)
+      }
+
+      // Lampu sorot pendar dari bawah jumbotron
+      const jumbotronLight = new THREE.PointLight(0x38bdf8, 1.4, 24)
+      jumbotronLight.position.set(0, -screenH / 2 - 0.4, 1.2)
+      jumbotron.add(jumbotronLight)
+
+      jumbotron.raycast = () => {}
+      group.add(jumbotron)
+    }
   }
 
   /* ---------------------------------------------------- ceiling + lights -- */
@@ -3694,29 +3822,43 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
   const asphaltTex = track(asphaltTexture('#5a5f63', '#8b9095'))
   asphaltTex.repeat.set(24, 3)
   const pavementTex = track(pavementTexture('#9aa0a4', '#7f868b'))
-  const earthTex = track(earthTexture('#6b7a56', '#4d5a3e', '#8a9a6c'))
-  earthTex.repeat.set(18, 18)
-  const earthBump = track(bumpFrom(earthTex, 0.55))
+  const sandTex = track(sandTexture('#f5dfb8', '#e2c08b', '#fdf2db'))
+  sandTex.wrapS = THREE.RepeatWrapping
+  sandTex.wrapT = THREE.RepeatWrapping
+  sandTex.repeat.set(16, 5)
+
+  const sandMat = track(
+    new THREE.MeshStandardMaterial({
+      map: sandTex,
+      roughness: 0.98,
+      metalness: 0.02,
+      color: 0xfff0d6,
+    }),
+  )
+
   const asphaltBump = track(bumpFrom(asphaltTex, 0.7))
   const pavementBump = track(bumpFrom(pavementTex, 0.5))
 
   const GROUND_EXTENT = 220
   const earth = new THREE.Mesh(
     new THREE.PlaneGeometry(GROUND_EXTENT, GROUND_EXTENT),
-    new THREE.MeshStandardMaterial({ color: 0x6f7a5e, map: earthTex, bumpMap: earthBump, bumpScale: 0.5, roughness: 1 }),
+    new THREE.MeshStandardMaterial({ color: 0xf5dfb8, map: sandTex, roughness: 0.98 }),
   )
   earth.rotation.x = -Math.PI / 2
   earth.position.y = -0.12
   earth.receiveShadow = true
+  earth.raycast = () => {}
   streetGroup.add(earth)
 
+  // Pavement hanya di bawah footprint gedung & plaza depan (kiri & kanan full pasir pantai bersih)
   const pavement = new THREE.Mesh(
-    new THREE.PlaneGeometry(150, 130),
+    new THREE.PlaneGeometry(58, 48),
     new THREE.MeshStandardMaterial({ map: pavementTex, bumpMap: pavementBump, bumpScale: 0.25, roughness: 0.95 }),
   )
   pavement.rotation.x = -Math.PI / 2
-  pavement.position.set(0, -0.06, 0)
+  pavement.position.set(0, -0.06, 12)
   pavement.receiveShadow = true
+  pavement.raycast = () => {}
   streetGroup.add(pavement)
 
   const road = new THREE.Mesh(
@@ -3832,11 +3974,6 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
   }
 
   /* ------------------------------------------- tropical beach & ocean resort */
-  const sandTex = track(sandTexture('#f5dfb8', '#e2c08b', '#fdf2db'))
-  sandTex.wrapS = THREE.RepeatWrapping
-  sandTex.wrapT = THREE.RepeatWrapping
-  sandTex.repeat.set(16, 5)
-
   const oceanTex = track(oceanWaveTexture())
   oceanTex.wrapS = THREE.RepeatWrapping
   oceanTex.wrapT = THREE.RepeatWrapping
@@ -3846,39 +3983,32 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
   beachGroup.name = 'tropical-beach'
   streetGroup.add(beachGroup)
 
-  const sandMat = track(
-    new THREE.MeshStandardMaterial({
-      map: sandTex,
-      roughness: 0.98,
-      metalness: 0.02,
-      color: 0xfff0d6,
-    }),
-  )
-
-  // 1. Hamparan Pasir Pantai Luas (Utara Gedung, z = -21 s.d. -46)
-  const northBeach = new THREE.Mesh(new THREE.PlaneGeometry(210, 36), sandMat)
-  northBeach.rotation.x = -Math.PI / 2
-  northBeach.position.set(0, -0.045, -39)
-  northBeach.receiveShadow = true
-  northBeach.raycast = () => {}
-  beachGroup.add(northBeach)
-
-  // Sayap pantai barat & timur menyatu secara alami di samping gedung
-  const westBeach = new THREE.Mesh(new THREE.PlaneGeometry(54, 46), sandMat)
+  // 1. Hamparan Pasir Pantai Penuh (Kiri, Kanan, dan Belakang Gedung 100% Pasir Bersih)
+  // Sayap Pasir Pantai Barat (Kiri Gedung) — Penuh tanpa batas
+  const westBeach = new THREE.Mesh(new THREE.PlaneGeometry(90, 220), sandMat)
   westBeach.rotation.x = -Math.PI / 2
-  westBeach.position.set(-54, -0.05, -20)
+  westBeach.position.set(-73, -0.045, 0)
   westBeach.receiveShadow = true
   westBeach.raycast = () => {}
   beachGroup.add(westBeach)
 
-  const eastBeach = new THREE.Mesh(new THREE.PlaneGeometry(54, 46), sandMat)
+  // Sayap Pasir Pantai Timur (Kanan Gedung) — Penuh tanpa batas
+  const eastBeach = new THREE.Mesh(new THREE.PlaneGeometry(90, 220), sandMat)
   eastBeach.rotation.x = -Math.PI / 2
-  eastBeach.position.set(54, -0.05, -20)
+  eastBeach.position.set(73, -0.045, 0)
   eastBeach.receiveShadow = true
   eastBeach.raycast = () => {}
   beachGroup.add(eastBeach)
 
-  // 2. Samudra Tropis Turquoise (z = -44 s.d. -115)
+  // Hamparan Pasir Pantai Luas Belakang Gedung (Utara, z = -21 s.d. -46)
+  const northBeach = new THREE.Mesh(new THREE.PlaneGeometry(220, 50), sandMat)
+  northBeach.rotation.x = -Math.PI / 2
+  northBeach.position.set(0, -0.045, -45)
+  northBeach.receiveShadow = true
+  northBeach.raycast = () => {}
+  beachGroup.add(northBeach)
+
+  // 2. Samudra Tropis Tenang & Jernih (z = -46 s.d. -160) — Ombak Dihilangkan Sesuai Permintaan
   const oceanMat = track(
     new THREE.MeshPhysicalMaterial({
       map: oceanTex,
@@ -3891,27 +4021,41 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     }),
   )
 
-  const northOcean = new THREE.Mesh(new THREE.PlaneGeometry(220, 72), oceanMat)
+  const northOcean = new THREE.Mesh(new THREE.PlaneGeometry(220, 115), oceanMat)
   northOcean.rotation.x = -Math.PI / 2
-  northOcean.position.set(0, -0.035, -78)
+  northOcean.position.set(0, -0.035, -103.5)
   northOcean.receiveShadow = true
   northOcean.raycast = () => {}
   beachGroup.add(northOcean)
 
-  // Buih Ombak Pantai Garis Putih Dinamis di Bibir Pantai (Shoreline Foam)
-  const foamMat = track(
-    new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      roughness: 0.3,
-      transparent: true,
-      opacity: 0.65,
-    }),
-  )
-  const shoreFoam = new THREE.Mesh(new THREE.PlaneGeometry(210, 2.6), foamMat)
-  shoreFoam.rotation.x = -Math.PI / 2
-  shoreFoam.position.set(0, -0.028, -44.5)
-  shoreFoam.raycast = () => {}
-  beachGroup.add(shoreFoam)
+  // Pegunungan Tropis Megah di Kejauhan Belakang Samudra Pantai (z = -125 s.d. -160)
+  const mountainGroup = new THREE.Group()
+  mountainGroup.name = 'beach-horizon-mountains'
+  for (const [mx, mz, radius, height, color, rotY] of [
+    [-22, -135, 46, 55, 0x1e3a34, 0.4],  // Puncak Utama Megah (Mount Zelvira)
+    [32, -142, 40, 46, 0x234338, 1.2],   // Puncak Timur
+    [-72, -138, 38, 42, 0x1b343f, 2.1],  // Gugusan Pegunungan Barat
+    [75, -145, 36, 38, 0x223c4a, 0.8],   // Puncak Pesisir Timur Jauh
+    [6, -155, 52, 60, 0x192e38, 3.0],    // Puncak Horizon Berkabut
+  ] as const) {
+    const mtnMat = stdMat(color, { rough: 0.95 })
+    const mtn = new THREE.Mesh(new THREE.ConeGeometry(radius, height, 9), mtnMat)
+    mtn.position.set(mx, height / 2 - 4.0, mz)
+    mtn.rotation.y = rotY
+    mtn.castShadow = true
+    mtn.receiveShadow = true
+    mtn.raycast = () => {}
+    mountainGroup.add(mtn)
+
+    // Lembah bukit penyambung di kaki gunung
+    const ridge = new THREE.Mesh(new THREE.ConeGeometry(radius * 0.75, height * 0.45, 7), mtnMat)
+    ridge.position.set(mx + radius * 0.5, (height * 0.45) / 2 - 3.0, mz + 8)
+    ridge.rotation.y = rotY + 0.5
+    ridge.raycast = () => {}
+    mountainGroup.add(ridge)
+  }
+  mountainGroup.raycast = () => {}
+  beachGroup.add(mountainGroup)
 
   // 3. Dermaga Kayu Pantai Tropis (Ocean Wooden Pier)
   {
@@ -4235,111 +4379,293 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     beachGroup.add(cabana)
   }
 
-  // 8. Papan Tron Jumbo Zelvira di Tengah Pantai/Laut (Jumbo Ocean Megatron)
+  // 8. Lapangan Voli Pantai di Pasir Kiri (Beach Volleyball Court, x = -42, z = -28)
   {
-    const jumbotron = new THREE.Group()
-    jumbotron.position.set(0, 0, -58) // Tepat di tengah horizon samudra pantai
-    jumbotron.name = 'zelvira-jumbotron-ocean'
+    const volleyGroup = new THREE.Group()
+    volleyGroup.position.set(-42, 0, -28)
+    volleyGroup.name = 'beach-volleyball-court'
 
-    // Pondasi silinder beton maritim di dalam air (Marine Caissons)
-    for (const px of [-6.5, 6.5]) {
-      const caisson = cyl(1.2, 1.4, 2.4, 0x334155, 12, 0.9)
-      caisson.position.set(px, 0.5, 0)
-      caisson.castShadow = true
-      caisson.receiveShadow = true
-      caisson.raycast = () => {}
-      jumbotron.add(caisson)
+    // Garis batas lapangan pita oranye terang (16m x 9m)
+    const courtW = 9.0  // z-axis
+    const courtL = 16.0 // x-axis
+    const tapeColor = 0xf97316
 
-      // Tiang baja pylon ganda penopang megatron raksasa (Tinggi hingga 13 meter)
-      const tower = cyl(0.45, 0.5, 11.0, 0x0f172a, 12, 0.3)
-      tower.position.set(px, 6.2, 0)
-      tower.castShadow = true
-      tower.raycast = () => {}
-      jumbotron.add(tower)
-
-      // Ring penguat pylon baja
-      for (const ry of [3.0, 6.0, 9.0]) {
-        const ring = cyl(0.58, 0.58, 0.25, 0x38bdf8, 12, 0.2)
-        ring.position.set(px, ry, 0)
-        ring.raycast = () => {}
-        jumbotron.add(ring)
-      }
+    // Garis tepi panjang (utara & selatan)
+    for (const tz of [-courtW / 2, courtW / 2]) {
+      const line = box(courtL, 0.02, 0.1, tapeColor, { rough: 0.6 })
+      line.position.set(0, 0.01, tz)
+      line.raycast = () => {}
+      volleyGroup.add(line)
+    }
+    // Garis tepi pendek (barat & timur)
+    for (const tx of [-courtL / 2, courtL / 2]) {
+      const line = box(0.1, 0.02, courtW, tapeColor, { rough: 0.6 })
+      line.position.set(tx, 0.01, 0)
+      line.raycast = () => {}
+      volleyGroup.add(line)
     }
 
-    // Rangka truss baja silang pengikat antar tiang pylon
-    for (let ty = 3.2; ty <= 8.5; ty += 2.2) {
-      const truss = box(13.0, 0.16, 0.16, 0x1e293b, { metal: 0.8, rough: 0.3 })
-      truss.position.set(0, ty, 0)
-      truss.raycast = () => {}
-      jumbotron.add(truss)
+    // Tiang Net Voli Pantai di sisi utara & selatan net
+    const netZ1 = -courtW / 2 - 0.7
+    const netZ2 = courtW / 2 + 0.7
+    for (const pz of [netZ1, netZ2]) {
+      const pole = cyl(0.065, 0.065, 3.1, 0x1e293b, 8, 0.4)
+      pole.position.set(0, 1.55, pz)
+      pole.castShadow = true
+      pole.raycast = () => {}
+      volleyGroup.add(pole)
+
+      // Bantalan pelindung tiang busa kuning
+      const pad = cyl(0.11, 0.11, 1.4, 0xfde047, 8)
+      pad.position.set(0, 0.75, pz)
+      pad.raycast = () => {}
+      volleyGroup.add(pad)
+
+      // Kawat seling penahan tiang ke pasir
+      const wire = cyl(0.015, 0.015, 2.2, 0x94a3b8, 4)
+      wire.position.set(0, 1.2, pz + (pz > 0 ? 0.9 : -0.9))
+      wire.rotation.x = pz > 0 ? -0.7 : 0.7
+      wire.raycast = () => {}
+      volleyGroup.add(wire)
     }
 
-    // Kabinet display megatron raksasa (18 meter lebar x 9.5 meter tinggi)
-    const screenW = 18.0
-    const screenH = 9.5
-    const screenY = 9.8 // Ketinggian ideal terlihat dari Lantai 0, Lantai 1, dan Lantai 2
+    // Jaring Net Voli Pantai (Tinggi Net 1.0 m, Posisi Atas 2.43 m regulasi)
+    const netLen = courtW + 1.2
+    const netH = 1.0
+    const netMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(0.04, netH, netLen),
+      new THREE.MeshStandardMaterial({
+        color: 0xf1f5f9,
+        roughness: 0.8,
+        transparent: true,
+        opacity: 0.65,
+      }),
+    )
+    netMesh.position.set(0, 2.43 - netH / 2, 0)
+    netMesh.raycast = () => {}
+    volleyGroup.add(netMesh)
 
-    const cabinet = box(screenW + 0.8, screenH + 0.8, 0.9, 0x090d16, { metal: 0.7, rough: 0.3 })
-    cabinet.position.set(0, screenY, 0)
-    cabinet.castShadow = true
-    cabinet.raycast = () => {}
-    jumbotron.add(cabinet)
+    // Pita atas net vinyl putih tebal
+    const netTopBand = box(0.07, 0.1, netLen, 0xffffff, { rough: 0.6 })
+    netTopBand.position.set(0, 2.43, 0)
+    netTopBand.raycast = () => {}
+    volleyGroup.add(netTopBand)
 
-    // Bezel list modern futuristik dengan aksen pendar neon toska
-    const bezelTop = box(screenW + 0.9, 0.2, 0.95, 0x06b6d4, { emissive: 0x06b6d4, ei: 0.85 })
-    bezelTop.position.set(0, screenY + screenH / 2 + 0.1, 0)
-    bezelTop.raycast = () => {}
-    jumbotron.add(bezelTop)
+    const netBotBand = box(0.06, 0.07, netLen, 0xffffff, { rough: 0.6 })
+    netBotBand.position.set(0, 2.43 - netH, 0)
+    netBotBand.raycast = () => {}
+    volleyGroup.add(netBotBand)
 
-    const bezelBot = box(screenW + 0.9, 0.2, 0.95, 0x06b6d4, { emissive: 0x06b6d4, ei: 0.85 })
-    bezelBot.position.set(0, screenY - screenH / 2 - 0.1, 0)
-    bezelBot.raycast = () => {}
-    jumbotron.add(bezelBot)
+    // Antena net vertikal merah-putih
+    for (const az of [-courtW / 2, courtW / 2]) {
+      const ant = cyl(0.018, 0.018, 1.8, 0xef4444, 6)
+      ant.position.set(0, 2.8, az)
+      ant.raycast = () => {}
+      volleyGroup.add(ant)
+    }
 
-    // Layar LED Jumbotron Display Utama menampilkan Logo Zelvira (logo.png)
-    const logoTex = logoTexture()
-    const jumbotronMat = new THREE.MeshStandardMaterial({
-      map: logoTex,
-      transparent: true,
-      roughness: 0.15,
-      metalness: 0.1,
-      emissive: 0xffffff,
-      emissiveMap: logoTex,
-      emissiveIntensity: 1.15,
+    // Bola Voli Pantai di atas pasir
+    const ball = new THREE.Mesh(
+      new THREE.SphereGeometry(0.22, 16, 12),
+      stdMat(0xfacc15, { rough: 0.4 }),
+    )
+    ball.position.set(1.8, 0.22, -1.6)
+    ball.castShadow = true
+    ball.raycast = () => {}
+    volleyGroup.add(ball)
+
+    // Menara Kursi Wasit Kayu di pinggir lapangan
+    const refTower = box(0.9, 1.8, 0.9, 0xb45309, { rough: 0.85 })
+    refTower.position.set(0, 0.9, netZ2 + 1.1)
+    refTower.castShadow = true
+    refTower.raycast = () => {}
+    volleyGroup.add(refTower)
+
+    const refSeat = box(0.7, 0.6, 0.6, 0x1e3a8a, { rough: 0.8 })
+    refSeat.position.set(0, 2.05, netZ2 + 1.1)
+    refSeat.raycast = () => {}
+    volleyGroup.add(refSeat)
+
+    // Bangku santai pemain di pinggir pasir
+    const bench = box(2.4, 0.45, 0.65, 0x78350f, { rough: 0.85 })
+    bench.position.set(6.5, 0.25, -courtW / 2 - 1.2)
+    bench.castShadow = true
+    bench.raycast = () => {}
+    volleyGroup.add(bench)
+
+    volleyGroup.raycast = () => {}
+    beachGroup.add(volleyGroup)
+  }
+
+  // 9. Cafe Beach Party di Pasir Kanan (Beach Party Cafe, x = 42, z = -28)
+  {
+    const cafeGroup = new THREE.Group()
+    cafeGroup.position.set(42, 0, -28)
+    cafeGroup.name = 'beach-party-cafe'
+
+    // Dek Kayu Panggung Party Utama (14m x 11m)
+    const deck = box(14.0, 0.22, 11.0, 0x854d0e, { rough: 0.85 })
+    deck.position.y = 0.11
+    deck.castShadow = true
+    deck.receiveShadow = true
+    deck.raycast = () => {}
+    cafeGroup.add(deck)
+
+    // Bar Cocktail Bambu Eksotis (Tiki Beach Bar)
+    const barCounter = box(5.4, 1.1, 1.3, 0x451a03, { rough: 0.75 })
+    barCounter.position.set(0, 0.66, -3.2)
+    barCounter.castShadow = true
+    barCounter.raycast = () => {}
+    cafeGroup.add(barCounter)
+
+    const barTop = new THREE.Mesh(rbox(5.6, 0.08, 1.45, 0.04), woodMat)
+    barTop.position.set(0, 1.25, -3.2)
+    barTop.raycast = () => {}
+    cafeGroup.add(barTop)
+
+    // Atap Rumbia / Jerami Cafe Pantai Tropis (Thatched Tiki Roof)
+    const tikiRoof = new THREE.Mesh(
+      new THREE.ConeGeometry(4.2, 1.8, 8),
+      stdMat(0xb45309, { rough: 0.95 }),
+    )
+    tikiRoof.position.set(0, 3.8, -3.2)
+    tikiRoof.castShadow = true
+    tikiRoof.raycast = () => {}
+    cafeGroup.add(tikiRoof)
+
+    // 4 Tiang Bambu Penyangga Atap
+    for (const [bx, bz] of [
+      [-2.4, -4.2],
+      [2.4, -4.2],
+      [-2.4, -2.2],
+      [2.4, -2.2],
+    ] as const) {
+      const bPost = cyl(0.09, 0.1, 3.2, 0x78350f, 8)
+      bPost.position.set(bx, 1.7, bz)
+      bPost.castShadow = true
+      bPost.raycast = () => {}
+      cafeGroup.add(bPost)
+    }
+
+    // Kursi Bar Tinggi (Tiki Barstools)
+    for (let sx = -2.0; sx <= 2.0; sx += 1.0) {
+      const stool = cyl(0.18, 0.18, 0.8, 0x92400e, 8)
+      stool.position.set(sx, 0.51, -2.1)
+      stool.castShadow = true
+      stool.raycast = () => {}
+      cafeGroup.add(stool)
+    }
+
+    // Papan Nama Cafe Gantung "ZELVIRA BEACH CAFE"
+    const signBoard = box(2.8, 0.55, 0.08, 0x1e293b, { rough: 0.6 })
+    signBoard.position.set(0, 2.7, -2.2)
+    signBoard.raycast = () => {}
+    cafeGroup.add(signBoard)
+
+    const signTextMat = new THREE.MeshStandardMaterial({
+      emissive: 0xf59e0b,
+      emissiveIntensity: 0.85,
+      color: 0xf59e0b,
+      roughness: 0.2,
     })
+    const signPlate = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 0.45), signTextMat)
+    signPlate.position.set(0, 2.7, -2.15)
+    signPlate.raycast = () => {}
+    cafeGroup.add(signPlate)
 
-    // Sisi depan menghadap ke gedung kantor (menghadap +Z)
-    const frontScreen = new THREE.Mesh(new THREE.PlaneGeometry(screenW, screenH), jumbotronMat)
-    frontScreen.position.set(0, screenY, 0.46)
-    frontScreen.raycast = () => {}
-    jumbotron.add(frontScreen)
+    // Meja Cocktail & Payung Jerami Cafe
+    for (const [tx, tz] of [
+      [-4.2, 1.8],
+      [4.2, 1.8],
+    ] as const) {
+      const barrel = cyl(0.4, 0.38, 0.95, 0x78350f, 10)
+      barrel.position.set(tx, 0.58, tz)
+      barrel.castShadow = true
+      barrel.raycast = () => {}
+      cafeGroup.add(barrel)
 
-    // Sisi belakang menghadap samudra lepas (menghadap -Z)
-    const backScreen = new THREE.Mesh(new THREE.PlaneGeometry(screenW, screenH), jumbotronMat)
-    backScreen.rotation.y = Math.PI
-    backScreen.position.set(0, screenY, -0.46)
-    backScreen.raycast = () => {}
-    jumbotron.add(backScreen)
+      // Payung jerami kecil di meja
+      const parasol = new THREE.Mesh(new THREE.ConeGeometry(1.2, 0.5, 8), stdMat(0xd97706, { rough: 0.9 }))
+      parasol.position.set(tx, 2.1, tz)
+      parasol.raycast = () => {}
+      cafeGroup.add(parasol)
 
-    // Catwalk platform servis & pemeliharaan di bawah layar
-    const catwalk = box(screenW + 1.2, 0.15, 1.4, 0x1e293b, { rough: 0.85 })
-    catwalk.position.set(0, screenY - screenH / 2 - 0.45, 0.45)
-    catwalk.raycast = () => {}
-    jumbotron.add(catwalk)
+      const pPole = cyl(0.03, 0.03, 1.6, 0x451a03, 6)
+      pPole.position.set(tx, 1.4, tz)
+      pPole.raycast = () => {}
+      cafeGroup.add(pPole)
+    }
 
-    // Pagar pengaman catwalk
-    const catRail = box(screenW + 1.2, 0.85, 0.08, 0x64748b, { metal: 0.7, rough: 0.3 })
-    catRail.position.set(0, screenY - screenH / 2, 1.1)
-    catRail.raycast = () => {}
-    jumbotron.add(catRail)
+    // Papan Selancar (Surfboards) warna-warni bersandar di tiang
+    for (const [sfx, sfz, rotZ, col] of [
+      [-2.8, -2.0, 0.25, 0x06b6d4],
+      [-3.2, -2.0, 0.35, 0xf43f5e],
+      [2.8, -2.0, -0.25, 0xfacc15],
+    ] as const) {
+      const surf = new THREE.Mesh(new THREE.BoxGeometry(0.45, 2.2, 0.08), stdMat(col, { rough: 0.3 }))
+      surf.position.set(sfx, 1.05, sfz)
+      surf.rotation.z = rotZ
+      surf.castShadow = true
+      surf.raycast = () => {}
+      cafeGroup.add(surf)
+    }
 
-    // Lampu tembak pendar dari bawah layar
-    const jumbotronSpot = new THREE.PointLight(0x38bdf8, 1.2, 28)
-    jumbotronSpot.position.set(0, screenY - screenH / 2, 1.8)
-    jumbotron.add(jumbotronSpot)
+    // Bantal / Beanbags Santai Party di lantai dek
+    for (const [bx, bz, col] of [
+      [-2.0, 2.4, 0x0284c7],
+      [0.0, 2.6, 0xf97316],
+      [2.0, 2.4, 0x10b981],
+    ] as const) {
+      const beanbag = new THREE.Mesh(new THREE.DodecahedronGeometry(0.55, 1), stdMat(col, { rough: 0.85 }))
+      beanbag.scale.set(1.2, 0.6, 1.2)
+      beanbag.position.set(bx, 0.35, bz)
+      beanbag.castShadow = true
+      beanbag.raycast = () => {}
+      cafeGroup.add(beanbag)
+    }
 
-    jumbotron.raycast = () => {}
-    beachGroup.add(jumbotron)
+    // DJ Booth & Speaker Sound System Beach Party
+    const djTable = box(1.8, 0.9, 0.75, 0x0f172a, { metal: 0.6, rough: 0.3 })
+    djTable.position.set(0, 0.55, 3.2)
+    djTable.castShadow = true
+    djTable.raycast = () => {}
+    cafeGroup.add(djTable)
+
+    // Turntables & mixer neon
+    const djMixer = box(1.4, 0.08, 0.5, 0x38bdf8, { emissive: 0x38bdf8, ei: 0.6 })
+    djMixer.position.set(0, 1.04, 3.2)
+    djMixer.raycast = () => {}
+    cafeGroup.add(djMixer)
+
+    // Speaker panggung konser ganda
+    for (const sx of [-1.5, 1.5]) {
+      const spk = box(0.55, 1.4, 0.55, 0x020617, { rough: 0.4 })
+      spk.position.set(sx, 1.4, 3.4)
+      spk.castShadow = true
+      spk.raycast = () => {}
+      cafeGroup.add(spk)
+    }
+
+    // Lampu Pesta Festoon Gantung (Party String Bistro Lights)
+    for (const [lx, lz] of [
+      [-5.5, -4.5],
+      [5.5, -4.5],
+      [-5.5, 4.5],
+      [5.5, 4.5],
+    ] as const) {
+      const pole = cyl(0.06, 0.06, 3.8, 0x78350f, 8)
+      pole.position.set(lx, 1.9, lz)
+      pole.raycast = () => {}
+      cafeGroup.add(pole)
+
+      // Lampu bohlam hangat menggantung
+      const bulb = new THREE.PointLight(0xfef08a, hour >= 18 || hour < 6 ? 0.9 : 0.3, 10)
+      bulb.position.set(lx, 3.6, lz)
+      cafeGroup.add(bulb)
+    }
+
+    cafeGroup.raycast = () => {}
+    beachGroup.add(cafeGroup)
   }
 
   // 9. Perahu-Perahu Nelayan Tradisional Indonesia (Cadik / Jukung di Samudra)
@@ -4629,11 +4955,6 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
       }
       v.obj.position.z = v.z
     }
-
-    // Coastal Ocean Wave & Shoreline Foam Breathing Animation
-    northOcean.position.y = -0.035 + Math.sin(t * 1.5) * 0.015
-    shoreFoam.position.z = -44.5 + Math.sin(t * 1.5) * 0.85
-    foamMat.opacity = 0.5 + Math.sin(t * 1.5) * 0.25
 
     // Animasi ayunan ombak perahu nelayan (Heave, Roll & Pitch)
     for (const b of fishingBoats) {
