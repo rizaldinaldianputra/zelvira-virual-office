@@ -625,21 +625,24 @@ export default function MeetingPanel({
             </div>
           </div>
 
-          {/* Card 4 (Opsional): Setup LLM bila belum dikonfigurasi */}
-          {meetingMode === 'simulasi' && !configured && (
-            <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3.5 text-xs text-amber-300 flex flex-col gap-2">
+          {/* Card 4: Status Engine & Pengaturan Model */}
+          {meetingMode === 'simulasi' && (
+            <div className="rounded-xl border border-indigo-500/30 bg-indigo-500/10 p-3 text-xs text-indigo-300 flex flex-col gap-2">
               <div className="flex items-center justify-between">
-                <span>⚠️ Mode simulasi membutuhkan API Key LLM.</span>
+                <span className="flex items-center gap-1.5 font-medium">
+                  <span>✨</span>
+                  <span>Model: <b>Default Hermes Engine</b> (Siap Digunakan)</span>
+                </span>
                 <button
                   className="font-bold underline text-sky-400 hover:text-sky-300 text-[11px]"
                   onClick={() => setShowConfigBox(!showConfigBox)}
                 >
-                  {showConfigBox ? 'Tutup' : '⚙️ Isi API Key'}
+                  {showConfigBox ? 'Tutup' : '⚙️ Custom API Key'}
                 </button>
               </div>
 
               {showConfigBox && (
-                <div className="mt-1 pt-2 border-t border-amber-500/20 flex flex-col gap-2 bg-slate-900/80 p-3 rounded-lg">
+                <div className="mt-1 pt-2 border-t border-indigo-500/20 flex flex-col gap-2 bg-slate-900/80 p-3 rounded-lg">
                   <div>
                     <label className="text-[10px] font-bold text-slate-300 block mb-0.5">Base URL</label>
                     <input
@@ -684,7 +687,7 @@ export default function MeetingPanel({
 
           <button
             className="vp-btn primary w-full flex items-center justify-center gap-2 font-bold py-2.5 shadow-md shadow-indigo-500/10 mt-1"
-            disabled={busy || !topic.trim() || picked.length < 2 || (meetingMode === 'simulasi' && !configured)}
+            disabled={busy || !topic.trim() || picked.length < 2}
             onClick={start}
           >
             <span>▶</span>

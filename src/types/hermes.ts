@@ -101,6 +101,8 @@ export type Agent = {
   currentTaskId?: string | null
   /** The profile's default model — what its workers and chats run. */
   model?: string | null
+  /** Deskripsi job desk / tanggung jawab agent. */
+  description?: string | null
 }
 
 /**

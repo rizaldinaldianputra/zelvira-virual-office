@@ -32,6 +32,8 @@ type Row = {
   role?: AgentRole | string | null
   /** Divisi dari route agents GET; null/undefined bila backend lama. */
   division?: AgentDivision | string | null
+  /** Deskripsi Job Desk / Tanggung Jawab agent. */
+  description?: string | null
   /** True bila profil punya SOUL.md sendiri. */
   soulExists?: boolean | null
   /** Keahlian/domain (dipakai office, bukan A2A). */
@@ -62,6 +64,21 @@ const SKILL_SUGGESTIONS: Record<AgentRole, string[]> = {
   seo: ['keyword-research', 'on-page-seo', 'backlinks', 'content-optimization', 'search-console'],
   content: ['article-writing', 'video-scripts', 'storytelling', 'social-media-content'],
   affiliator: ['affiliate-marketing', 'product-curation', 'conversion-tracking', 'link-strategy'],
+}
+
+const DEFAULT_JOB_DESK: Record<string, string> = {
+  backend: 'Mengembangkan dan memelihara backend API, database PostgreSQL, dan integrasi server.',
+  frontend: 'Membangun antarmuka web interaktif, halaman responsif, dan visual komponen UI/UX.',
+  qa: 'Menguji fungsionalitas sistem, verifikasi kriteria penerimaan tugas, dan validasi kualitas rilis.',
+  researcher: 'Melakukan riset mendalam, pengumpulan data pasar, dan analisis komparatif.',
+  devops: 'Mengelola infrastruktur cloud, Docker container, pipeline CI/CD, dan monitoring server.',
+  marketing: 'Menjalankan kampanye digital, riset pasar, akuisisi pengguna, dan analitik performa.',
+  seo: 'Optimasi SEO on-page/off-page, riset kata kunci pencarian, dan strategi visibilitas website.',
+  content: 'Menulis artikel blog SEO, materi promosi produk Zelvira, dan konten media sosial.',
+  affiliator: 'Mengelola kemitraan afiliasi produk, penawaran promosi, dan pelacakan konversi tautan.',
+  ceo: 'Memimpin visi strategis kantor virtual, pengambilan keputusan puncak, dan evaluasi hasil kerja tim.',
+  orchestrator: 'Mengkoordinasikan tugas antar-agent, mengawasi alur kerja, dan standup tim harian.',
+  manager: 'Memimpin divisi kerja, mendelegasikan tugas ke staf, dan melakukan QA review hasil kerja.',
 }
 
 const SOUL_PRESETS: { label: string; desc: string; text: (name: string, role: string, div: string) => string }[] = [
@@ -100,7 +117,7 @@ export default function AgentSpawnPanel({
   const [err, setErr] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [newName, setNewName] = useState('')
-  const [newDesc, setNewDesc] = useState('')
+  const [newDesc, setNewDesc] = useState(DEFAULT_JOB_DESK['backend'] || '')
   const [newRole, setNewRole] = useState<AgentRole>('backend')
   const [newDivision, setNewDivision] = useState<AgentDivision>('tech')
   const [newSoul, setNewSoul] = useState('')
@@ -145,7 +162,7 @@ export default function AgentSpawnPanel({
     setEditingAgent(r)
     setEditRole((r.role as AgentRole) || 'backend')
     setEditDivision((r.division as AgentDivision) || 'tech')
-    setEditDesc(r.reason || '')
+    setEditDesc(r.description || DEFAULT_JOB_DESK[r.role as string] || '')
     setEditDomains((r.domains || []).join(', '))
     setEditModel(r.model || '')
   }
@@ -878,7 +895,13 @@ export default function AgentSpawnPanel({
               <select
                 className="vp-input w-full"
                 value={newRole}
-                onChange={(e) => setNewRole(e.target.value as AgentRole)}
+                onChange={(e) => {
+                  const roleVal = e.target.value as AgentRole
+                  setNewRole(roleVal)
+                  if (!newDesc.trim() || Object.values(DEFAULT_JOB_DESK).includes(newDesc.trim())) {
+                    setNewDesc(DEFAULT_JOB_DESK[roleVal] || '')
+                  }
+                }}
               >
                 {ROLE_OPTIONS.map(([v, label]) => (
                   <option key={v} value={v}>
@@ -891,13 +914,13 @@ export default function AgentSpawnPanel({
 
           <div>
             <label className="block text-[11px] font-bold text-slate-300 mb-1">
-              Deskripsi Tugas Singkat
+              Deskripsi Job Desk / Tanggung Jawab <span className="text-rose-400">*</span>
             </label>
             <input
               className="vp-input w-full text-xs"
               value={newDesc}
               onChange={(e) => setNewDesc(e.target.value)}
-              placeholder="Misal: Bertanggung jawab atas API, database Postgres, dan docker container"
+              placeholder="Rincian tanggung jawab dan tugas spesifik agent ini..."
             />
           </div>
         </div>

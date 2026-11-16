@@ -109,6 +109,7 @@ export async function GET() {
         /** Role + divisi (dari SOUL.md, fallback keyword nama). */
         role: agentMeta.get(name)?.role ?? null,
         division: agentMeta.get(name)?.division ?? null,
+        description: agentMeta.get(name)?.description ?? servedDesc.get(name) ?? null,
         soulExists: agentMeta.get(name)?.soulExists ?? false,
         /** Keahlian/domain (dari marker SOUL.md; dipakai office, bukan A2A). */
         domains: agentMeta.get(name)?.domains ?? [],

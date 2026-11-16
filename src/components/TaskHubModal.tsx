@@ -396,6 +396,12 @@ export default function TaskHubModal({
                         <div className="text-[11px] text-slate-500 font-mono mt-0.5">
                           Model Default: <span className="text-sky-300 font-semibold">{selectedAgent.model || 'hermes-default'}</span>
                         </div>
+                        {selectedAgent.description && (
+                          <div className="text-[11px] text-slate-300 mt-1.5 bg-slate-800/80 p-2 rounded-lg border border-slate-700/60">
+                            <span className="text-slate-400 font-bold block text-[10px] uppercase tracking-wider mb-0.5">Job Desk / Tanggung Jawab:</span>
+                            <span className="leading-relaxed">{selectedAgent.description}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
 

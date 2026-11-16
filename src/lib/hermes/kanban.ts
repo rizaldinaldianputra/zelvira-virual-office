@@ -1734,6 +1734,10 @@ export async function createProfile(
     : `${enrichedSoul}\n<!-- office: role=${role} division=${division}${domains.length ? ` domains=${domains.join(',')}` : ''} -->`
   const dir = path.join(hermesHome(), 'profiles', clean)
   await writeFile(path.join(dir, 'SOUL.md'), soulWithMarker, 'utf8')
+  // Simpan description.txt agar job desk persisten dan terbaca di seluruh UI
+  if (desc) {
+    await writeFile(path.join(dir, 'description.txt'), desc, 'utf8').catch(() => {})
+  }
   // describe: catat role/divisi supaya terbaca tanpa buka SOUL.md
   await hermesWrite(['profile', 'describe', clean, `${desc} [${role}/${division}]`]).catch(() => {})
   return { name: clean, description: desc, role, division, domains }
@@ -1867,14 +1871,27 @@ export async function listAgents(
 
   const active = activeTaskByAssignee(tasks)
 
-  // Soul per agent: baca marker office (role/divisi/domains). Fallback ke keyword nama.
+  // Soul & Job Desk per agent: baca marker office dan description.txt
   const souls = await Promise.all(names.map((n) => readSoul(n)))
+  const descriptions = await Promise.all(
+    names.map(async (n) => {
+      try {
+        const p = path.join(hermesHome(), 'profiles', n, 'description.txt')
+        if (existsSync(p)) {
+          const txt = (await readFile(p, 'utf8')).trim()
+          if (txt) return txt
+        }
+      } catch {}
+      return null
+    }),
+  )
   const meta = names.map((name, i) => {
     const soul = souls[i]
     const parsed = soul ? parseSoulMarker(soul) : {}
     const role = parsed.role ?? roleFor(name)
     const division = parsed.division ?? divisionFor(role)
-    return { name, soul, role, division, domains: parsed.domains ?? [] as string[] }
+    const description = descriptions[i] ?? null
+    return { name, soul, role, division, domains: (parsed.domains ?? []) as string[], description }
   })
 
   // Meja PER DIVISI dulu, lalu meja KOSONG divisi lain (lihat `assignDesks`): yang punya
@@ -1885,7 +1902,7 @@ export async function listAgents(
     meta.map((m) => ({ name: m.name, division: m.division, role: m.role, busy: active.has(m.name) })),
   )
 
-  return meta.map(({ name, soul, role, division, domains }) => {
+  return meta.map(({ name, soul, role, division, domains, description }) => {
     const task = active.get(name)
     // Menunggu manusia MENGALAHKAN working/review: agent yang berhenti menunggu keputusan
     // tidak boleh tampil sedang bekerja. Kursinya tetap — dia masih memegang task itu.
@@ -1901,6 +1918,7 @@ export async function listAgents(
       displayName: name,
       role,
       division,
+      description,
       soulExists: soul != null,
       domains,
       deskIndex: seatOf.get(name) ?? null,

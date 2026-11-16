@@ -282,8 +282,71 @@ export function createScene(
   scene.environment = envRT.texture
   scene.environmentIntensity = 1.0
   pmrem.dispose()
-  scene.background = skyGradientTexture()
+
+  // Tekstur gradasi langit siang dan malam
+  const skyDay = skyGradientTexture(['#0284c7', '#38bdf8', '#7dd3fc', '#bae6fd', '#fef3c7'])
+  const skyNight = skyGradientTexture(['#020617', '#050c1e', '#091936', '#0f2744', '#172554'])
+
+  scene.background = skyDay
   scene.fog = new THREE.Fog(0xbce3f7, 90, 240)
+
+  // 1. Matahari siang cerah (hanya tampil siang)
+  const sunGroup = new THREE.Group()
+  sunGroup.name = 'celestial-sun'
+  const sunMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(4.8, 20, 20),
+    new THREE.MeshBasicMaterial({ color: 0xfff7ed }),
+  )
+  const sunGlow = new THREE.Mesh(
+    new THREE.SphereGeometry(7.2, 16, 16),
+    new THREE.MeshBasicMaterial({ color: 0xfef08a, transparent: true, opacity: 0.35 }),
+  )
+  sunGroup.add(sunMesh)
+  sunGroup.add(sunGlow)
+  sunGroup.position.set(55, 48, 30)
+  scene.add(sunGroup)
+
+  // 2. Bulan malam bercahaya (hanya tampil malam)
+  const moonGroup = new THREE.Group()
+  moonGroup.name = 'celestial-moon'
+  const moonMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(3.8, 24, 24),
+    new THREE.MeshBasicMaterial({ color: 0xfef9c3 }),
+  )
+  const moonGlow = new THREE.Mesh(
+    new THREE.SphereGeometry(5.8, 16, 16),
+    new THREE.MeshBasicMaterial({ color: 0xe0e7ff, transparent: true, opacity: 0.45 }),
+  )
+  const moonLight = new THREE.PointLight(0xc7d2fe, 1.2, 180)
+  moonGroup.add(moonMesh)
+  moonGroup.add(moonGlow)
+  moonGroup.add(moonLight)
+  moonGroup.position.set(-55, 44, -55)
+  scene.add(moonGroup)
+
+  // 3. Taburan ribuan bintang malam (banyak bintang, hanya tampil malam)
+  const starCount = 1200
+  const starGeo = new THREE.BufferGeometry()
+  const starPos = new Float32Array(starCount * 3)
+  for (let i = 0; i < starCount; i++) {
+    const theta = Math.random() * Math.PI * 2
+    const phi = Math.acos(Math.random() * 0.85 + 0.1)
+    const r = 140 + Math.random() * 50
+    starPos[i * 3] = r * Math.sin(phi) * Math.cos(theta)
+    starPos[i * 3 + 1] = 15 + r * Math.cos(phi)
+    starPos[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta)
+  }
+  starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3))
+  const starMat = new THREE.PointsMaterial({
+    color: 0xffffff,
+    size: 1.6,
+    sizeAttenuation: true,
+    transparent: true,
+    opacity: 0.95,
+  })
+  const starfield = new THREE.Points(starGeo, starMat)
+  starfield.name = 'celestial-stars'
+  scene.add(starfield)
 
   let hour = Number(
     new Intl.DateTimeFormat('en-GB', { hour: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' })
@@ -1374,15 +1437,30 @@ export function createScene(
     a.bubbleTimer = ms
   }
 
-  const skyDay = skyGradientTexture()
-  const skyNight = skyGradientTexture(['#20344d', '#31465f', '#4a6076', '#63798c'])
+  let dayNightMode: 'day' | 'night' | 'auto' = 'auto'
+  function isNightNow(): boolean {
+    if (dayNightMode === 'night') return true
+    if (dayNightMode === 'day') return false
+    return hour >= 18 || hour < 6
+  }
+
+  function applyDayNight() {
+    const night = isNightNow()
+    office.applyPalette(night ? 22 : 12)
+    scene.background = night ? skyNight : skyDay
+    scene.fog = new THREE.Fog(night ? 0x091428 : 0xbce3f7, night ? 70 : 90, night ? 210 : 240)
+    sunGroup.visible = !night
+    moonGroup.visible = night
+    starfield.visible = night
+  }
+
   function setHour(h: number) {
     hour = h
-    office.applyPalette(h)
-    scene.background = h >= 18 || h < 6 ? skyNight : skyDay
-    scene.fog = new THREE.Fog(h >= 18 || h < 6 ? 0x54697d : 0xd3e2ef, 80, 220)
+    if (dayNightMode === 'auto') {
+      applyDayNight()
+    }
   }
-  setHour(hour)
+  applyDayNight()
 
   let lastPaletteUpdate = performance.now()
 
@@ -1496,6 +1574,22 @@ export function createScene(
     },
     get hour() {
       return hour
+    },
+    setDayNightMode(mode: 'day' | 'night' | 'auto') {
+      dayNightMode = mode
+      applyDayNight()
+    },
+    getDayNightMode() {
+      return dayNightMode
+    },
+    isNight() {
+      return isNightNow()
+    },
+    toggleDayNight() {
+      const next = isNightNow() ? 'day' : 'night'
+      dayNightMode = next
+      applyDayNight()
+      return next
     },
     /** Exposed so the self-check can assert the room signs exist. */
     stairCentre,

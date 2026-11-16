@@ -10,6 +10,7 @@
  * Units: 1 = 1 metre. +X east, +Z south, +Y up.
  */
 import * as THREE from 'three'
+import { LOGO_DATA_URI } from './logoBase64'
 import { rbox } from './bevel'
 import {
   carpetGrey,
@@ -141,8 +142,17 @@ function logoTexture(): THREE.Texture {
           loadedTex.needsUpdate = true
         },
         undefined,
-        (err) => {
-          console.warn('Gagal memuat /logo.png, beralih ke fallback canvas:', err)
+        () => {
+          // Bila /logo.png gagal (misal 404 dari server), muat instan dari base64 data URI logo asli
+          loader.load(LOGO_DATA_URI, (fbTex) => {
+            fbTex.colorSpace = THREE.SRGBColorSpace
+            fbTex.anisotropy = 8
+            fbTex.generateMipmaps = true
+            fbTex.needsUpdate = true
+            tex.image = fbTex.image
+            tex.colorSpace = THREE.SRGBColorSpace
+            tex.needsUpdate = true
+          })
         }
       )
       tex.colorSpace = THREE.SRGBColorSpace
@@ -294,14 +304,14 @@ function zelviraOfficeRooftopTexture(): THREE.Texture {
 function createExteriorTotem(): THREE.Group {
   const g = new THREE.Group()
 
-  // Base stone footing
-  const base = box(1.8, 0.25, 0.7, 0x1e293b, { rough: 0.85, metal: 0.1 })
+  // Base stone footing - marmer cerah
+  const base = box(1.8, 0.25, 0.7, 0xf1f5f9, { rough: 0.4, metal: 0.2 })
   base.position.y = 0.125
   base.castShadow = true
   g.add(base)
 
-  // Main dark architectural monolith
-  const monolith = box(1.5, 2.4, 0.35, 0x0f172a, { rough: 0.35, metal: 0.6 })
+  // Main architectural monolith - marmer putih elegan, fresh & cerah
+  const monolith = box(1.5, 2.4, 0.35, 0xf8fafc, { rough: 0.3, metal: 0.3 })
   monolith.position.y = 1.35
   monolith.castShadow = true
   g.add(monolith)
@@ -769,6 +779,8 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
   let tvIdleIntensity = 0.6
   /** The bar and plates resting in the rack's hooks, hidden while somebody benches. */
   const rackBarParts: THREE.Mesh[] = []
+  /** Tiang lampu jalan panjang yang menyala saat malam dan mati saat siang */
+  const tallLamps: { lens: THREE.Mesh; light: THREE.SpotLight }[] = []
   let pal: Palette = paletteFor(hour)
   const disposables: { dispose(): void }[] = []
   const track = <T extends { dispose(): void }>(t: T): T => {
@@ -1380,13 +1392,13 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     glassPane.raycast = () => {}
     group.add(glassPane)
 
-    // 2. Balok lintel / spandrel transom arsitektural di puncak lantai
+    // 2. Balok lintel / spandrel transom arsitektural di puncak lantai - bersih, fresh & cerah
     const header = box(
       horizontal ? len : WALL_T,
       0.16,
       horizontal ? WALL_T : len,
-      0x1e293b,
-      { metal: 0.6, rough: 0.3 },
+      0xe2e8f0,
+      { metal: 0.7, rough: 0.25 },
     )
     header.position.set(cx, yFloor + floorH - 0.08, cz)
     header.castShadow = false
@@ -1448,7 +1460,7 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
 
   // Portal Kaca Geser Lobi ke Courtyard (Bebas tiang, full glass transom)
   {
-    const lobbyGlassHeader = box(8.2, 0.22, 0.12, 0x1e293b, { metal: 0.7, rough: 0.3 })
+    const lobbyGlassHeader = box(8.2, 0.22, 0.12, 0xe2e8f0, { metal: 0.8, rough: 0.2 })
     lobbyGlassHeader.position.set(0, LEVEL_H - 0.11, 16)
     lobbyGlassHeader.raycast = () => {}
     group.add(lobbyGlassHeader)
@@ -1931,9 +1943,9 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     atriumLight.position.set(-2.6, LEVEL2_Y + 0.6, -10.25)
     group.add(atriumLight)
 
-    // 5. Pilar titanium lantai 3 penyangga kanopi atap
+    // 5. Pilar arsitektural lantai atas penyangga kanopi - platinum putih segar & cerah
     for (const cx of [deckX1, 0, 6, 12, 18, 24, deckX2]) {
-      const col = cyl(0.12, 0.12, LEVEL_H, 0x0f172a, 12, 0.7)
+      const col = cyl(0.12, 0.12, LEVEL_H, 0xe2e8f0, 16, 0.85)
       col.position.set(cx, LEVEL2_Y + LEVEL_H / 2, -9)
       col.castShadow = true
       group.add(col)
@@ -3819,19 +3831,20 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
   const pavementBump = track(bumpFrom(pavementTex, 0.5))
 
   const GROUND_EXTENT = 220
-  const earthTex = track(earthTexture('#6b7a56', '#4d5a3e', '#8a9a6c'))
+  // Area paling luar abu-abu jalan raya (grey road/asphalt tone), seragam tanpa warna hitam/kusam
+  const earthTex = track(earthTexture('#525861', '#454a52', '#5e6570'))
   earthTex.repeat.set(GROUND_EXTENT / 12, GROUND_EXTENT / 12)
-  const earthBump = track(bumpFrom(earthTex, 0.55))
+  const earthBump = track(bumpFrom(earthTex, 0.4))
   earthBump.repeat.copy(earthTex.repeat)
 
   const earth = new THREE.Mesh(
     new THREE.PlaneGeometry(GROUND_EXTENT, GROUND_EXTENT),
     new THREE.MeshStandardMaterial({
-      color: 0x6f7a5e,
+      color: 0x525861,
       map: earthTex,
       bumpMap: earthBump,
-      bumpScale: 0.5,
-      roughness: 1,
+      bumpScale: 0.35,
+      roughness: 0.95,
     }),
   )
   earth.rotation.x = -Math.PI / 2
@@ -3897,20 +3910,76 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
   kerb.position.set(0, -0.02, HALF_D + 9.2)
   streetGroup.add(kerb)
 
-  for (const lx of [-20, 20]) {
-    const lampZ = HALF_D + 6.4
-    const post = cyl(0.07, 0.09, 5.4, 0x6d7378, 8, 0.5)
-    post.position.set(lx, 2.7, lampZ)
-    streetGroup.add(post)
-    const arm = box(0.14, 0.1, 1.2, 0x6d7378, { metal: 0.5 })
-    arm.position.set(lx, 5.3, lampZ + 0.5)
-    streetGroup.add(arm)
-    const head = box(0.6, 0.14, 0.34, 0x6d7378, { metal: 0.5 })
-    head.position.set(lx, 5.24, lampZ + 1.05)
-    streetGroup.add(head)
-    const lamp = new THREE.PointLight(0xfff0cf, hour >= 18 || hour < 6 ? 1.0 : 0.1, 18)
-    lamp.position.set(lx, 5.05, lampZ + 1.05)
-    streetGroup.add(lamp)
+  // Lampu tiang panjang arsitektural (menyala saat malam, mati saat siang)
+  const lampPositions: [number, number, number][] = [
+    // Sepanjang jalan raya & trotoar depan gedung (tiang tinggi 6.8m)
+    [-46, HALF_D + 6.8, 0],
+    [-32, HALF_D + 6.8, 0],
+    [-18, HALF_D + 6.8, 0],
+    [-4, HALF_D + 6.8, 0],
+    [10, HALF_D + 6.8, 0],
+    [24, HALF_D + 6.8, 0],
+    [38, HALF_D + 6.8, 0],
+    [52, HALF_D + 6.8, 0],
+    // Area pantai belakang & samping
+    [-48, -20.0, Math.PI / 2],
+    [-24, -20.0, Math.PI],
+    [24, -20.0, Math.PI],
+    [48, -20.0, -Math.PI / 2],
+  ]
+
+  const isNightInit = hour >= 18 || hour < 6
+  for (const [lx, lz, rotY] of lampPositions) {
+    const lampGroup = new THREE.Group()
+    lampGroup.position.set(lx, 0, lz)
+    lampGroup.rotation.y = rotY
+
+    // Tiang panjang 6.8m - sleek platinum white/silver
+    const poleH = 6.8
+    const post = cyl(0.08, 0.12, poleH, 0xe2e8f0, 10, 0.8)
+    post.position.y = poleH / 2
+    post.castShadow = true
+    lampGroup.add(post)
+
+    // Lengan atas lengkung
+    const arm = box(0.12, 0.1, 1.4, 0xe2e8f0, { metal: 0.8 })
+    arm.position.set(0, poleH - 0.05, 0.6)
+    lampGroup.add(arm)
+
+    // Rumah lampu LED modern
+    const head = box(0.42, 0.12, 0.8, 0x334155, { metal: 0.6, rough: 0.3 })
+    head.position.set(0, poleH - 0.08, 1.2)
+    lampGroup.add(head)
+
+    // Lensa LED pendar cahaya
+    const lensMat = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      emissive: isNightInit ? 0xffeaad : 0x000000,
+      emissiveIntensity: isNightInit ? 2.5 : 0.0,
+      roughness: 0.2,
+    })
+    const lens = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.03, 0.68), lensMat)
+    lens.position.set(0, poleH - 0.15, 1.2)
+    lampGroup.add(lens)
+
+    // Lampu sorot SpotLight mengarah ke tanah
+    const spot = new THREE.SpotLight(
+      0xfff1cf,
+      isNightInit ? 2.2 : 0.0,
+      24,
+      Math.PI / 3.2,
+      0.5,
+      1.2,
+    )
+    spot.position.set(0, poleH - 0.2, 1.2)
+    const spotTarget = new THREE.Object3D()
+    spotTarget.position.set(0, 0, 1.2)
+    lampGroup.add(spotTarget)
+    spot.target = spotTarget
+    lampGroup.add(spot)
+
+    streetGroup.add(lampGroup)
+    tallLamps.push({ lens, light: spot })
   }
 
   // Outdoor Zelvira monument pylon sign on the front boulevard outside the building
@@ -3919,13 +3988,13 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     pylon.position.set(7.5, 0, HALF_D + 4.2)
     pylon.name = 'zelvira-outdoor-pylon'
 
-    // Base podium
-    const base = box(2.4, 0.35, 1.0, 0x1e293b, { rough: 0.85 })
+    // Base podium - marmer cerah
+    const base = box(2.4, 0.35, 1.0, 0xf1f5f9, { rough: 0.4 })
     base.position.y = 0.175
     pylon.add(base)
 
-    // Main totem pillar
-    const totem = box(2.0, 3.6, 0.45, 0x0f172a, { rough: 0.3, metal: 0.5 })
+    // Main totem pillar - marmer putih elegan & fresh
+    const totem = box(2.0, 3.6, 0.45, 0xf8fafc, { rough: 0.25, metal: 0.3 })
     totem.position.y = 2.05
     totem.castShadow = true
     pylon.add(totem)
@@ -5438,6 +5507,17 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     fill.intensity = night ? 0.35 : 0.45
     for (const l of lamps) l.intensity = night ? 0.85 : 0.25
     for (const s of streaks) (s.material as THREE.MeshStandardMaterial).emissiveIntensity = night ? 1.5 : 0.85
+    for (const tl of tallLamps) {
+      if (night) {
+        ;(tl.lens.material as THREE.MeshStandardMaterial).emissive.setHex(0xffeaad)
+        ;(tl.lens.material as THREE.MeshStandardMaterial).emissiveIntensity = 2.5
+        tl.light.intensity = 2.2
+      } else {
+        ;(tl.lens.material as THREE.MeshStandardMaterial).emissive.setHex(0x000000)
+        ;(tl.lens.material as THREE.MeshStandardMaterial).emissiveIntensity = 0.0
+        tl.light.intensity = 0.0
+      }
+    }
   }
 
   function dispose() {

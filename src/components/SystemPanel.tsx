@@ -150,6 +150,7 @@ export default function SystemPanel({ open, onClose }: { open: boolean; onClose:
   const [customBaseUrl, setCustomBaseUrl] = useState('')
   const [customSetAsDefault, setCustomSetAsDefault] = useState(true)
   const [customApplyToAll, setCustomApplyToAll] = useState(true)
+  const [systemTab, setSystemTab] = useState<'model' | 'project' | 'gateway' | 'observability'>('model')
   const [modelTab, setModelTab] = useState<'catalog' | 'custom' | 'project'>('catalog')
 
   // Project & Server Integration state
@@ -580,345 +581,161 @@ export default function SystemPanel({ open, onClose }: { open: boolean; onClose:
 
       {notice && <div className="mb-4 rounded border border-slate-600 bg-slate-800/60 p-2 text-xs">{notice}</div>}
 
-      {/* ---------- RELOAD SEMUA HERMES ---------- */}
-      <section className="mb-6 rounded-lg border border-rose-700/60 bg-gradient-to-r from-slate-900 via-rose-950/20 to-slate-900 p-4 text-xs shadow-lg">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="space-y-1 max-w-xl">
-            <div className="flex items-center gap-2">
-              <span className="text-base">⚡</span>
-              <h3 className="font-bold text-sm uppercase tracking-wide text-rose-300">
-                Reload & Restart Semua Hermes
-              </h3>
-            </div>
-            <p className="text-[11px] text-slate-300 leading-relaxed">
-              Terapkan model default ({modelData?.defaultModel || 'nvidia/nemotron-3-ultra-55'}) ke seluruh profil agent (`contencreator`, `seo`, dll), perbarui konfigurasi provider di scope profil, bersihkan cache, dan restart gateway Hermes agar seluruh agent langsung sinkron.
-            </p>
-          </div>
+      {/* ---------- TAB NAVIGATION SISTEM ---------- */}
+      <div className="flex border-b border-slate-700/80 mb-5 gap-2 overflow-x-auto pb-1 text-xs">
+        <button
+          type="button"
+          onClick={() => setSystemTab('model')}
+          className={`flex items-center gap-1.5 px-3 py-2 rounded-t font-semibold border-b-2 transition-all ${
+            systemTab === 'model'
+              ? 'border-indigo-400 bg-indigo-950/40 text-indigo-300 shadow'
+              : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+          }`}
+        >
+          <span>🤖</span>
+          <span>Model AI & Profil</span>
+        </button>
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleReloadAllHermes}
-              disabled={reloadingAll || modelBusy}
-              className="rounded-lg bg-rose-600 hover:bg-rose-500 font-bold px-4 py-2.5 text-white shadow-lg transition-all flex items-center gap-2 disabled:opacity-50 text-xs cursor-pointer"
-            >
-              {reloadingAll ? (
-                <>
-                  <span className="animate-spin">⏳</span>
-                  <span>Sedang Me-reload Semua Hermes…</span>
-                </>
-              ) : (
-                <>
-                  <span>🔄</span>
-                  <span>Reload & Restart Semua Hermes</span>
-                </>
-              )}
-            </button>
-          </div>
-        </div>
+        <button
+          type="button"
+          onClick={() => setSystemTab('project')}
+          className={`flex items-center gap-1.5 px-3 py-2 rounded-t font-semibold border-b-2 transition-all ${
+            systemTab === 'project'
+              ? 'border-emerald-400 bg-emerald-950/40 text-emerald-300 shadow'
+              : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+          }`}
+        >
+          <span>🏢</span>
+          <span>Integrasi Server & Proyek</span>
+        </button>
 
-        {reloadMsg && (
-          <div
-            className={`mt-3 p-2.5 rounded border text-xs flex justify-between items-center ${
-              reloadMsg.type === 'ok'
-                ? 'bg-emerald-950/60 border-emerald-700 text-emerald-300'
-                : 'bg-red-950/60 border-red-700 text-red-300'
-            }`}
-          >
-            <div>
-              <span>{reloadMsg.text}</span>
-              {reloadMsg.manualCmd && (
-                <code className="block mt-1 font-mono text-[10px] bg-slate-950 p-1 rounded text-slate-200">
-                  {reloadMsg.manualCmd}
-                </code>
-              )}
-            </div>
-            <button
-              onClick={() => setReloadMsg(null)}
-              className="text-slate-400 hover:text-white ml-2 text-sm font-bold"
-            >
-              ×
-            </button>
-          </div>
-        )}
-      </section>
+        <button
+          type="button"
+          onClick={() => setSystemTab('gateway')}
+          className={`flex items-center gap-1.5 px-3 py-2 rounded-t font-semibold border-b-2 transition-all ${
+            systemTab === 'gateway'
+              ? 'border-sky-400 bg-sky-950/40 text-sky-300 shadow'
+              : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+          }`}
+        >
+          <span>⚡</span>
+          <span>Gateway & Kantor</span>
+          {appr && appr.pending.length > 0 && (
+            <span className="ml-1 px-1.5 py-0.2 rounded-full bg-red-600 text-white text-[10px]">
+              {appr.pending.length}
+            </span>
+          )}
+        </button>
 
-      {/* ---------- PENGATURAN MODEL AGENT & API KEY ---------- */}
-      <section className="mb-6 rounded-lg border border-indigo-700/60 bg-gradient-to-b from-slate-900 to-indigo-950/30 p-4 text-xs shadow-lg">
-        <div className="flex items-center justify-between border-b border-indigo-800/50 pb-2 mb-3">
-          <div className="flex items-center gap-2">
-            <span className="text-base">⚙️</span>
-            <div>
-              <h3 className="font-semibold text-sm uppercase tracking-wide text-indigo-300">
-                Pengaturan Model Agent & API Key
-              </h3>
-              <p className="text-[11px] text-slate-400">
-                Pilih model AI untuk seluruh agent. Default dari profile Hermes, atau masukkan API key & model kustom.
-              </p>
-            </div>
-          </div>
-          {modelLoading && <span className="text-indigo-400 animate-pulse text-[11px]">memuat model…</span>}
-        </div>
+        <button
+          type="button"
+          onClick={() => setSystemTab('observability')}
+          className={`flex items-center gap-1.5 px-3 py-2 rounded-t font-semibold border-b-2 transition-all ${
+            systemTab === 'observability'
+              ? 'border-amber-400 bg-amber-950/40 text-amber-300 shadow'
+              : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+          }`}
+        >
+          <span>📊</span>
+          <span>Biaya & Observabilitas</span>
+        </button>
+      </div>
 
-        {modelMsg && (
-          <div
-            className={`mb-3 p-2.5 rounded border text-xs flex justify-between items-center ${
-              modelMsg.type === 'ok'
-                ? 'bg-emerald-950/60 border-emerald-700 text-emerald-300'
-                : 'bg-red-950/60 border-red-700 text-red-300'
-            }`}
-          >
-            <span>{modelMsg.text}</span>
-            <button
-              onClick={() => setModelMsg(null)}
-              className="text-slate-400 hover:text-white ml-2 text-sm font-bold"
-            >
-              ×
-            </button>
-          </div>
-        )}
-
-        {/* Status Default Hermes Model Saat Ini */}
-        <div className="mb-4 rounded border border-slate-700 bg-slate-800/80 p-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <span className="text-slate-400 text-[11px] block">Model Default Hermes Kantor:</span>
-              <div className="flex items-center gap-2 mt-0.5">
-                <span className="font-mono text-sm font-bold text-amber-300">
-                  {modelData?.defaultModel || 'gpt-4o-mini'}
-                </span>
-                {modelData?.defaultProvider && (
-                  <span className="rounded bg-indigo-900/60 px-1.5 py-0.5 text-[10px] text-indigo-300 border border-indigo-700/50">
-                    provider: {modelData.defaultProvider}
-                  </span>
-                )}
-                <span className="rounded bg-emerald-900/40 px-1.5 py-0.5 text-[10px] text-emerald-300 border border-emerald-700/40">
-                  default profile
-                </span>
-              </div>
-            </div>
-
-            <button
-              onClick={handleSyncAllProfiles}
-              disabled={modelBusy}
-              className="rounded bg-indigo-600 px-3 py-1.5 font-medium text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors shadow-sm"
-              title="Set semua profil agent aktif agar mengikuti model default Hermes ini"
-            >
-              {modelBusy ? 'Memproses…' : '🔄 Samakan Semua Profile ke Default Hermes'}
-            </button>
-          </div>
-          <div className="mt-2 text-[11px] text-slate-400">
-            💡 Semua agent yang dibuat tanpa spesifikasi model khusus otomatis mengikuti default ini.
-          </div>
-        </div>
-
-        {/* Tab Pilih Model / Masukkan API Key / Integrasi Proyek */}
-        <div className="flex border-b border-slate-700 mb-3 gap-2 overflow-x-auto">
-          <button
-            onClick={() => setModelTab('catalog')}
-            className={`px-3 py-1.5 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${
-              modelTab === 'catalog'
-                ? 'border-indigo-400 text-indigo-300 bg-indigo-950/20'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            📋 Pilih Model Terdaftar
-          </button>
-          <button
-            onClick={() => setModelTab('custom')}
-            className={`px-3 py-1.5 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${
-              modelTab === 'custom'
-                ? 'border-indigo-400 text-indigo-300 bg-indigo-950/20'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            🔑 Input API Key & Custom
-          </button>
-          <button
-            onClick={() => setModelTab('project')}
-            className={`px-3 py-1.5 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${
-              modelTab === 'project'
-                ? 'border-emerald-400 text-emerald-300 bg-emerald-950/20 font-semibold'
-                : 'border-transparent text-emerald-400/80 hover:text-emerald-300'
-            }`}
-          >
-            🌐 Integrasi Proyek Zelvira (/var/www/ecommerce, DB & Admin)
-          </button>
-        </div>
-
-        {/* TAB 1: PILIH DARI KATALOG */}
-        {modelTab === 'catalog' && (
-          <div className="space-y-3 bg-slate-800/40 p-3 rounded border border-slate-700/70">
-            <div>
-              <label className="block text-slate-300 font-medium mb-1">
-                Pilih Model dari Katalog Hermes:
-              </label>
-              <select
-                value={selectedCatalogModel}
-                onChange={(e) => setSelectedCatalogModel(e.target.value)}
-                className="w-full rounded border border-slate-600 bg-slate-900 px-3 py-2 text-slate-200 focus:border-indigo-500 focus:outline-none"
-              >
-                <option value="">-- Pilih Model --</option>
-                {modelData?.models?.map((m) => (
-                  <option key={`${m.provider}:${m.model}`} value={m.model}>
-                    {m.label || `${m.model} (${m.provider})`}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex items-center gap-2 pt-1">
-              <label className="flex items-center gap-2 text-slate-300 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={applyCatalogToAll}
-                  onChange={(e) => setApplyCatalogToAll(e.target.checked)}
-                  className="rounded border-slate-600 bg-slate-800 text-indigo-500 focus:ring-indigo-400"
-                />
-                <span>Set ke semua profil agent (semua profile mengikuti model ini)</span>
-              </label>
-            </div>
-
-            <div className="pt-2">
-              <button
-                onClick={handleApplyCatalogModel}
-                disabled={modelBusy || !selectedCatalogModel}
-                className="rounded bg-emerald-600 px-3 py-1.5 font-medium text-white hover:bg-emerald-500 disabled:opacity-50 transition-colors"
-              >
-                {modelBusy ? 'Menyimpan…' : '✓ Terapkan Model Terpilih'}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* TAB 2: INPUT API KEY & CUSTOM MODEL */}
-        {modelTab === 'custom' && (
-          <div className="space-y-3 bg-slate-800/40 p-3 rounded border border-slate-700/70">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-slate-300 font-medium mb-1">
-                  API Key: <span className="text-red-400">*</span>
-                </label>
-                <input
-                  type="password"
-                  value={customApiKey}
-                  onChange={(e) => setCustomApiKey(e.target.value)}
-                  placeholder="sk-or-v1-... atau sk-..."
-                  className="w-full rounded border border-slate-600 bg-slate-900 px-3 py-1.5 text-slate-200 focus:border-indigo-500 focus:outline-none font-mono"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-300 font-medium mb-1">
-                  Model ID: <span className="text-red-400">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={customModel}
-                  onChange={(e) => setCustomModel(e.target.value)}
-                  placeholder="cth: anthropic/claude-3.5-sonnet, openai/gpt-4o-mini"
-                  className="w-full rounded border border-slate-600 bg-slate-900 px-3 py-1.5 text-slate-200 focus:border-indigo-500 focus:outline-none font-mono"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-slate-300 font-medium mb-1">
-                  Nama Provider:
-                </label>
-                <input
-                  type="text"
-                  value={customProviderName}
-                  onChange={(e) => setCustomProviderName(e.target.value)}
-                  placeholder="cth: openrouter, openai, groq (opsional)"
-                  className="w-full rounded border border-slate-600 bg-slate-900 px-3 py-1.5 text-slate-200 focus:border-indigo-500 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-300 font-medium mb-1">
-                  Base URL:
-                </label>
-                <input
-                  type="text"
-                  value={customBaseUrl}
-                  onChange={(e) => setCustomBaseUrl(e.target.value)}
-                  placeholder="https://openrouter.ai/api/v1 (opsional)"
-                  className="w-full rounded border border-slate-600 bg-slate-900 px-3 py-1.5 text-slate-200 focus:border-indigo-500 focus:outline-none font-mono text-[11px]"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1 pt-1">
-              <label className="flex items-center gap-2 text-slate-300 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={customSetAsDefault}
-                  onChange={(e) => setCustomSetAsDefault(e.target.checked)}
-                  className="rounded border-slate-600 bg-slate-800 text-indigo-500 focus:ring-indigo-400"
-                />
-                <span>Jadikan model default Hermes kantor</span>
-              </label>
-              <label className="flex items-center gap-2 text-slate-300 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={customApplyToAll}
-                  onChange={(e) => setCustomApplyToAll(e.target.checked)}
-                  className="rounded border-slate-600 bg-slate-800 text-indigo-500 focus:ring-indigo-400"
-                />
-                <span>Set ke semua profil agent aktif sekarang juga</span>
-              </label>
-            </div>
-
-            <div className="pt-2">
-              <button
-                onClick={handleSaveCustomProvider}
-                disabled={modelBusy || !customApiKey.trim() || !customModel.trim()}
-                className="rounded bg-indigo-600 px-3 py-1.5 font-medium text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors shadow-sm"
-              >
-                {modelBusy ? 'Menyimpan…' : '💾 Simpan Provider & Pasang Model'}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* TAB 3: INTEGRASI PROYEK ZELVIRA */}
-        {modelTab === 'project' && (
-          <div className="space-y-4 bg-slate-800/40 p-3.5 rounded border border-emerald-900/50">
-            {/* Header info */}
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-700/60 pb-2">
-              <div>
-                <h4 className="font-semibold text-emerald-400 text-sm flex items-center gap-1.5">
-                  <span>🏢 Integrasi Proyek & Server Zelvira</span>
-                </h4>
-                <p className="text-[11px] text-slate-400 mt-0.5">
-                  Hubungkan agen AI dengan codebase riil di server, database PostgreSQL, dan portal admin.zelvira.my.id.
+      {/* ============================================================== */}
+      {/* TAB 1: MODEL AI & PROFIL AGENT                                 */}
+      {/* ============================================================== */}
+      {systemTab === 'model' && (
+        <div className="space-y-6">
+          {/* Reload Semua Hermes */}
+          <section className="rounded-lg border border-rose-700/60 bg-gradient-to-r from-slate-900 via-rose-950/20 to-slate-900 p-4 text-xs shadow-lg">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="space-y-1 max-w-xl">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">⚡</span>
+                  <h3 className="font-bold text-sm uppercase tracking-wide text-rose-300">
+                    Reload & Restart Semua Hermes
+                  </h3>
+                </div>
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  Terapkan model default ({modelData?.defaultModel || 'nvidia/nemotron-3-ultra-55'}) ke seluruh profil agent (`contencreator`, `seo`, dll), perbarui konfigurasi provider di scope profil, bersihkan cache, dan restart gateway Hermes agar seluruh agent langsung sinkron.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={handleSyncProjectToAgents}
-                disabled={projectBusy}
-                className="px-3 py-1 text-xs font-semibold rounded bg-emerald-600 hover:bg-emerald-500 text-white shadow transition-colors disabled:opacity-50 flex items-center gap-1.5"
-                title="Suntikkan konteks proyek ke semua file SOUL.md profil agent"
-              >
-                <span>⚡ Sinkronkan ke Semua Agent</span>
-              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleReloadAllHermes}
+                  disabled={reloadingAll || modelBusy}
+                  className="rounded-lg bg-rose-600 hover:bg-rose-500 font-bold px-4 py-2.5 text-white shadow-lg transition-all flex items-center gap-2 disabled:opacity-50 text-xs cursor-pointer"
+                >
+                  {reloadingAll ? (
+                    <>
+                      <span className="animate-spin">⏳</span>
+                      <span>Sedang Me-reload Semua Hermes…</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>🔄</span>
+                      <span>Reload & Restart Semua Hermes</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
 
-            {/* Notification message */}
-            {projectMsg && (
+            {reloadMsg && (
               <div
-                className={`p-2.5 rounded text-xs flex items-center justify-between ${
-                  projectMsg.type === 'ok'
-                    ? 'bg-emerald-950/70 text-emerald-300 border border-emerald-800/60'
-                    : 'bg-red-950/70 text-red-300 border border-red-800/60'
+                className={`mt-3 p-2.5 rounded border text-xs flex justify-between items-center ${
+                  reloadMsg.type === 'ok'
+                    ? 'bg-emerald-950/60 border-emerald-700 text-emerald-300'
+                    : 'bg-red-950/60 border-red-700 text-red-300'
                 }`}
               >
-                <span>{projectMsg.text}</span>
+                <div>
+                  <span>{reloadMsg.text}</span>
+                  {reloadMsg.manualCmd && (
+                    <code className="block mt-1 font-mono text-[10px] bg-slate-950 p-1 rounded text-slate-200">
+                      {reloadMsg.manualCmd}
+                    </code>
+                  )}
+                </div>
                 <button
-                  type="button"
-                  onClick={() => setProjectMsg(null)}
+                  onClick={() => setReloadMsg(null)}
+                  className="text-slate-400 hover:text-white ml-2 text-sm font-bold"
+                >
+                  ×
+                </button>
+              </div>
+            )}
+          </section>
+
+          {/* Pengaturan Model Agent & API Key */}
+          <section className="rounded-lg border border-indigo-700/60 bg-gradient-to-b from-slate-900 to-indigo-950/30 p-4 text-xs shadow-lg">
+            <div className="flex items-center justify-between border-b border-indigo-800/50 pb-2 mb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-base">⚙️</span>
+                <div>
+                  <h3 className="font-semibold text-sm uppercase tracking-wide text-indigo-300">
+                    Pengaturan Model Agent & API Key
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Pilih model AI untuk seluruh agent. Default dari profile Hermes, atau masukkan API key & model kustom.
+                  </p>
+                </div>
+              </div>
+              {modelLoading && <span className="text-indigo-400 animate-pulse text-[11px]">memuat model…</span>}
+            </div>
+
+            {modelMsg && (
+              <div
+                className={`mb-3 p-2.5 rounded border text-xs flex justify-between items-center ${
+                  modelMsg.type === 'ok'
+                    ? 'bg-emerald-950/60 border-emerald-700 text-emerald-300'
+                    : 'bg-red-950/60 border-red-700 text-red-300'
+                }`}
+              >
+                <span>{modelMsg.text}</span>
+                <button
+                  onClick={() => setModelMsg(null)}
                   className="text-slate-400 hover:text-white ml-2 text-sm font-bold"
                 >
                   ×
@@ -926,512 +743,773 @@ export default function SystemPanel({ open, onClose }: { open: boolean; onClose:
               </div>
             )}
 
-            {/* Test result display */}
-            {projectTest && (
-              <div className="p-2.5 rounded text-xs bg-slate-900/90 border border-slate-700/80 space-y-1.5">
-                <div className="font-semibold text-slate-300 flex items-center justify-between">
-                  <span>Hasil Uji Koneksi:</span>
-                  <span className="text-[10px] text-slate-400">{projectTest.message}</span>
+            {/* Status Default Hermes Model Saat Ini */}
+            <div className="mb-4 rounded border border-slate-700 bg-slate-800/80 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <span className="text-slate-400 text-[11px] block">Model Default Hermes Kantor:</span>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="font-mono text-sm font-bold text-amber-300">
+                      {modelData?.defaultModel || 'gpt-4o-mini'}
+                    </span>
+                    {modelData?.defaultProvider && (
+                      <span className="rounded bg-indigo-900/60 px-1.5 py-0.5 text-[10px] text-indigo-300 border border-indigo-700/50">
+                        provider: {modelData.defaultProvider}
+                      </span>
+                    )}
+                    <span className="rounded bg-emerald-900/40 px-1.5 py-0.5 text-[10px] text-emerald-300 border border-emerald-700/40">
+                      default profile
+                    </span>
+                  </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-1">
-                  <div className="p-1.5 rounded bg-slate-800/60 border border-slate-700/50">
-                    <span className="text-[10px] text-slate-400 block">Codebase Server</span>
-                    <span className={`text-[11px] font-semibold ${projectTest.ecommerceFolderExists ? 'text-emerald-400' : 'text-amber-400'}`}>
-                      {projectTest.ecommerceFolderExists ? '✓ Terdeteksi di Host' : '⚠ Belum Terdeteksi Lokal (Server Mode)'}
-                    </span>
-                  </div>
-                  <div className="p-1.5 rounded bg-slate-800/60 border border-slate-700/50">
-                    <span className="text-[10px] text-slate-400 block">Portal Admin Zelvira</span>
-                    <span className={`text-[11px] font-semibold ${projectTest.adminPortalReachable ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {projectTest.adminPortalStatus}
-                    </span>
-                  </div>
-                  <div className="p-1.5 rounded bg-slate-800/60 border border-slate-700/50">
-                    <span className="text-[10px] text-slate-400 block">Database PostgreSQL</span>
-                    <span className={`text-[11px] font-semibold ${projectTest.dbConfigValid ? 'text-emerald-400' : 'text-amber-400'}`}>
-                      {projectTest.dbSummary}
-                    </span>
-                  </div>
+
+                <button
+                  onClick={handleSyncAllProfiles}
+                  disabled={modelBusy}
+                  className="rounded bg-indigo-600 px-3 py-1.5 font-medium text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors shadow-sm"
+                  title="Set semua profil agent aktif agar mengikuti model default Hermes ini"
+                >
+                  {modelBusy ? 'Memproses…' : '🔄 Samakan Semua Profile ke Default Hermes'}
+                </button>
+              </div>
+              <div className="mt-2 text-[11px] text-slate-400">
+                💡 Semua agent yang dibuat tanpa spesifikasi model khusus otomatis mengikuti default ini.
+              </div>
+            </div>
+
+            {/* Sub-tab: Katalog vs Custom API Key */}
+            <div className="flex border-b border-slate-700 mb-3 gap-2 overflow-x-auto">
+              <button
+                type="button"
+                onClick={() => setModelTab('catalog')}
+                className={`px-3 py-1.5 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${
+                  modelTab === 'catalog'
+                    ? 'border-indigo-400 text-indigo-300 bg-indigo-950/20'
+                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                📋 Pilih Model Terdaftar
+              </button>
+              <button
+                type="button"
+                onClick={() => setModelTab('custom')}
+                className={`px-3 py-1.5 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${
+                  modelTab === 'custom'
+                    ? 'border-indigo-400 text-indigo-300 bg-indigo-950/20'
+                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                🔑 Input API Key & Custom
+              </button>
+              <button
+                type="button"
+                onClick={() => setSystemTab('project')}
+                className="px-3 py-1.5 text-xs font-medium border-b-2 border-transparent text-emerald-400/80 hover:text-emerald-300 whitespace-nowrap"
+              >
+                🏢 Buka Integrasi Proyek Server →
+              </button>
+            </div>
+
+            {/* TAB 1: PILIH DARI KATALOG */}
+            {modelTab === 'catalog' && (
+              <div className="space-y-3 bg-slate-800/40 p-3 rounded border border-slate-700/70">
+                <div>
+                  <label className="block text-slate-300 font-medium mb-1">
+                    Pilih Model dari Katalog Hermes:
+                  </label>
+                  <select
+                    value={selectedCatalogModel}
+                    onChange={(e) => setSelectedCatalogModel(e.target.value)}
+                    className="w-full rounded border border-slate-600 bg-slate-900 px-3 py-2 text-slate-200 focus:border-indigo-500 focus:outline-none"
+                  >
+                    <option value="">-- Pilih Model --</option>
+                    {modelData?.models?.map((m) => (
+                      <option key={`${m.provider}:${m.model}`} value={m.model}>
+                        {m.label || `${m.model} (${m.provider})`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-2 pt-1">
+                  <label className="flex items-center gap-2 text-slate-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={applyCatalogToAll}
+                      onChange={(e) => setApplyCatalogToAll(e.target.checked)}
+                      className="rounded border-slate-600 bg-slate-800 text-indigo-500 focus:ring-indigo-400"
+                    />
+                    <span>Set ke semua profil agent (semua profile mengikuti model ini)</span>
+                  </label>
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    onClick={handleApplyCatalogModel}
+                    disabled={modelBusy || !selectedCatalogModel}
+                    className="rounded bg-emerald-600 px-3 py-1.5 font-medium text-white hover:bg-emerald-500 disabled:opacity-50 transition-colors"
+                  >
+                    {modelBusy ? 'Menyimpan…' : '✓ Terapkan Model Terpilih'}
+                  </button>
                 </div>
               </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {/* Card 1: Codebase Server */}
-              <div className="p-3 rounded bg-slate-900/60 border border-slate-700/70 space-y-2">
-                <h5 className="font-semibold text-xs text-sky-400 flex items-center gap-1.5">
-                  📁 Codebase & Folder Server
-                </h5>
+            {/* TAB 2: INPUT API KEY & CUSTOM MODEL */}
+            {modelTab === 'custom' && (
+              <div className="space-y-3 bg-slate-800/40 p-3 rounded border border-slate-700/70">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-300 font-medium mb-1">
+                      API Key: <span className="text-red-400">*</span>
+                    </label>
+                    <input
+                      type="password"
+                      value={customApiKey}
+                      onChange={(e) => setCustomApiKey(e.target.value)}
+                      placeholder="sk-or-v1-... atau sk-..."
+                      className="w-full rounded border border-slate-600 bg-slate-900 px-3 py-1.5 text-slate-200 focus:border-indigo-500 focus:outline-none font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-300 font-medium mb-1">
+                      Model ID: <span className="text-red-400">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={customModel}
+                      onChange={(e) => setCustomModel(e.target.value)}
+                      placeholder="cth: anthropic/claude-3.5-sonnet, openai/gpt-4o-mini"
+                      className="w-full rounded border border-slate-600 bg-slate-900 px-3 py-1.5 text-slate-200 focus:border-indigo-500 focus:outline-none font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-300 font-medium mb-1">
+                      Nama Provider:
+                    </label>
+                    <input
+                      type="text"
+                      value={customProviderName}
+                      onChange={(e) => setCustomProviderName(e.target.value)}
+                      placeholder="cth: openrouter, openai, groq (opsional)"
+                      className="w-full rounded border border-slate-600 bg-slate-900 px-3 py-1.5 text-slate-200 focus:border-indigo-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-300 font-medium mb-1">
+                      Base URL:
+                    </label>
+                    <input
+                      type="text"
+                      value={customBaseUrl}
+                      onChange={(e) => setCustomBaseUrl(e.target.value)}
+                      placeholder="https://openrouter.ai/api/v1 (opsional)"
+                      className="w-full rounded border border-slate-600 bg-slate-900 px-3 py-1.5 text-slate-200 focus:border-indigo-500 focus:outline-none font-mono text-[11px]"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1 pt-1">
+                  <label className="flex items-center gap-2 text-slate-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={customSetAsDefault}
+                      onChange={(e) => setCustomSetAsDefault(e.target.checked)}
+                      className="rounded border-slate-600 bg-slate-800 text-indigo-500 focus:ring-indigo-400"
+                    />
+                    <span>Jadikan model default Hermes kantor</span>
+                  </label>
+                  <label className="flex items-center gap-2 text-slate-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={customApplyToAll}
+                      onChange={(e) => setCustomApplyToAll(e.target.checked)}
+                      className="rounded border-slate-600 bg-slate-800 text-indigo-500 focus:ring-indigo-400"
+                    />
+                    <span>Set ke semua profil agent aktif sekarang juga</span>
+                  </label>
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    onClick={handleSaveCustomProvider}
+                    disabled={modelBusy || !customApiKey.trim() || !customModel.trim()}
+                    className="rounded bg-indigo-600 px-3 py-1.5 font-medium text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors shadow-sm"
+                  >
+                    {modelBusy ? 'Menyimpan…' : '💾 Simpan Provider & Pasang Model'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Tabel Profil Agent Aktif & Status Model */}
+            {modelData?.profiles && modelData.profiles.length > 0 && (
+              <div className="mt-4 pt-3 border-t border-slate-700/60">
+                <h4 className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-2">
+                  Status Model per Profil Agent ({modelData.profiles.length} agent):
+                </h4>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-[11px] text-left border border-slate-700/80 rounded">
+                    <thead className="bg-slate-800 text-slate-400">
+                      <tr>
+                        <th className="px-2 py-1.5 border-b border-slate-700">Agent</th>
+                        <th className="px-2 py-1.5 border-b border-slate-700">Model Aktif</th>
+                        <th className="px-2 py-1.5 border-b border-slate-700">Status</th>
+                        <th className="px-2 py-1.5 border-b border-slate-700 text-right">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800">
+                      {modelData.profiles.map((p) => (
+                        <tr key={p.name} className="hover:bg-slate-800/40">
+                          <td className="px-2 py-1.5 font-medium text-slate-200">{p.name}</td>
+                          <td className="px-2 py-1.5 font-mono text-slate-300">
+                            {p.model || modelData.defaultModel || 'gpt-4o-mini'}
+                          </td>
+                          <td className="px-2 py-1.5">
+                            {p.isDefault ? (
+                              <span className="text-emerald-300">✓ Mengikuti Default Hermes</span>
+                            ) : (
+                              <span className="text-amber-300">Custom Override</span>
+                            )}
+                          </td>
+                          <td className="px-2 py-1.5 text-right">
+                            {!p.isDefault && (
+                              <button
+                                onClick={() => handleResetProfile(p.name)}
+                                disabled={modelBusy}
+                                className="rounded border border-slate-600 px-2 py-0.5 text-[10px] text-slate-300 hover:bg-slate-700"
+                              >
+                                Reset ke Default
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </section>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* TAB 2: INTEGRASI SERVER & PROYEK                                */}
+      {/* ============================================================== */}
+      {systemTab === 'project' && (
+        <section className="space-y-4 bg-slate-900/60 p-4 rounded-lg border border-emerald-900/50 text-xs shadow-lg">
+          {/* Header info */}
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-700/60 pb-2">
+            <div>
+              <h4 className="font-semibold text-emerald-400 text-sm flex items-center gap-1.5">
+                <span>🏢 Integrasi Proyek & Server Zelvira</span>
+              </h4>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Hubungkan agen AI dengan codebase riil di server, database PostgreSQL, dan portal admin.zelvira.my.id.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleSyncProjectToAgents}
+              disabled={projectBusy}
+              className="px-3 py-1 text-xs font-semibold rounded bg-emerald-600 hover:bg-emerald-500 text-white shadow transition-colors disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+              title="Suntikkan konteks proyek ke semua file SOUL.md profil agent"
+            >
+              <span>⚡ Sinkronkan ke Semua Agent</span>
+            </button>
+          </div>
+
+          {/* Notification message */}
+          {projectMsg && (
+            <div
+              className={`p-2.5 rounded text-xs flex items-center justify-between ${
+                projectMsg.type === 'ok'
+                  ? 'bg-emerald-950/70 text-emerald-300 border border-emerald-800/60'
+                  : 'bg-red-950/70 text-red-300 border border-red-800/60'
+              }`}
+            >
+              <span>{projectMsg.text}</span>
+              <button
+                type="button"
+                onClick={() => setProjectMsg(null)}
+                className="text-slate-400 hover:text-white ml-2 text-sm font-bold"
+              >
+                ×
+              </button>
+            </div>
+          )}
+
+          {/* Test result display */}
+          {projectTest && (
+            <div className="p-2.5 rounded text-xs bg-slate-900/90 border border-slate-700/80 space-y-1.5">
+              <div className="font-semibold text-slate-300 flex items-center justify-between">
+                <span>Hasil Uji Koneksi:</span>
+                <span className="text-[10px] text-slate-400">{projectTest.message}</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-1">
+                <div className="p-1.5 rounded bg-slate-800/60 border border-slate-700/50">
+                  <span className="text-[10px] text-slate-400 block">Codebase Server</span>
+                  <span className={`text-[11px] font-semibold ${projectTest.ecommerceFolderExists ? 'text-emerald-400' : 'text-amber-400'}`}>
+                    {projectTest.ecommerceFolderExists ? '✓ Terdeteksi di Host' : '⚠ Belum Terdeteksi Lokal (Server Mode)'}
+                  </span>
+                </div>
+                <div className="p-1.5 rounded bg-slate-800/60 border border-slate-700/50">
+                  <span className="text-[10px] text-slate-400 block">Portal Admin Zelvira</span>
+                  <span className={`text-[11px] font-semibold ${projectTest.adminPortalReachable ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    {projectTest.adminPortalStatus}
+                  </span>
+                </div>
+                <div className="p-1.5 rounded bg-slate-800/60 border border-slate-700/50">
+                  <span className="text-[10px] text-slate-400 block">Database PostgreSQL</span>
+                  <span className={`text-[11px] font-semibold ${projectTest.dbConfigValid ? 'text-emerald-400' : 'text-amber-400'}`}>
+                    {projectTest.dbSummary}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {/* Card 1: Codebase Server */}
+            <div className="p-3 rounded bg-slate-900/60 border border-slate-700/70 space-y-2">
+              <h5 className="font-semibold text-xs text-sky-400 flex items-center gap-1.5">
+                📁 Codebase & Folder Server
+              </h5>
+              <div>
+                <label className="block text-[11px] text-slate-300 mb-1">Path Proyek di Server:</label>
+                <input
+                  type="text"
+                  value={projectConfig.ecommercePath}
+                  onChange={(e) => setProjectConfig({ ...projectConfig, ecommercePath: e.target.value })}
+                  placeholder="/var/www/ecommerce"
+                  className="w-full rounded bg-slate-800 border border-slate-600 px-2 py-1 text-xs text-white focus:outline-none focus:border-sky-400 font-mono"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[11px] text-slate-300 mb-1">Path Proyek di Server:</label>
+                  <label className="block text-[10px] text-slate-400 mb-0.5">Framework / Stack:</label>
                   <input
                     type="text"
-                    value={projectConfig.ecommercePath}
-                    onChange={(e) => setProjectConfig({ ...projectConfig, ecommercePath: e.target.value })}
-                    placeholder="/var/www/ecommerce"
-                    className="w-full rounded bg-slate-800 border border-slate-600 px-2 py-1 text-xs text-white focus:outline-none focus:border-sky-400 font-mono"
+                    value={projectConfig.framework}
+                    onChange={(e) => setProjectConfig({ ...projectConfig, framework: e.target.value })}
+                    placeholder="Next.js / Node.js"
+                    className="w-full rounded bg-slate-800 border border-slate-600 px-2 py-1 text-xs text-white focus:outline-none focus:border-sky-400"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-[10px] text-slate-400 mb-0.5">Framework / Stack:</label>
-                    <input
-                      type="text"
-                      value={projectConfig.framework}
-                      onChange={(e) => setProjectConfig({ ...projectConfig, framework: e.target.value })}
-                      placeholder="Next.js / Node.js"
-                      className="w-full rounded bg-slate-800 border border-slate-600 px-2 py-1 text-xs text-white focus:outline-none focus:border-sky-400"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] text-slate-400 mb-0.5">Host Server:</label>
-                    <input
-                      type="text"
-                      value={projectConfig.serverHost}
-                      onChange={(e) => setProjectConfig({ ...projectConfig, serverHost: e.target.value })}
-                      placeholder="VM-32-155-ubuntu"
-                      className="w-full rounded bg-slate-800 border border-slate-600 px-2 py-1 text-xs text-white focus:outline-none focus:border-sky-400"
-                    />
-                  </div>
-                </div>
                 <div>
-                  <label className="block text-[10px] text-slate-400 mb-0.5">Keterangan Proyek:</label>
+                  <label className="block text-[10px] text-slate-400 mb-0.5">Host Server:</label>
                   <input
                     type="text"
-                    value={projectConfig.projectDescription}
-                    onChange={(e) => setProjectConfig({ ...projectConfig, projectDescription: e.target.value })}
-                    placeholder="Zelvira E-Commerce Ecosystem"
+                    value={projectConfig.serverHost}
+                    onChange={(e) => setProjectConfig({ ...projectConfig, serverHost: e.target.value })}
+                    placeholder="VM-32-155-ubuntu"
                     className="w-full rounded bg-slate-800 border border-slate-600 px-2 py-1 text-xs text-white focus:outline-none focus:border-sky-400"
                   />
                 </div>
               </div>
+              <div>
+                <label className="block text-[10px] text-slate-400 mb-0.5">Keterangan Proyek:</label>
+                <input
+                  type="text"
+                  value={projectConfig.projectDescription}
+                  onChange={(e) => setProjectConfig({ ...projectConfig, projectDescription: e.target.value })}
+                  placeholder="Zelvira E-Commerce Ecosystem"
+                  className="w-full rounded bg-slate-800 border border-slate-600 px-2 py-1 text-xs text-white focus:outline-none focus:border-sky-400"
+                />
+              </div>
+            </div>
 
-              {/* Card 2: Database PostgreSQL */}
-              <div className="p-3 rounded bg-slate-900/60 border border-slate-700/70 space-y-2">
-                <div className="flex items-center justify-between">
-                  <h5 className="font-semibold text-xs text-indigo-400 flex items-center gap-1.5">
-                    🗄️ Database PostgreSQL Server
-                  </h5>
-                  <label className="text-[11px] text-slate-300 flex items-center gap-1 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={projectConfig.dbEnabled}
-                      onChange={(e) => setProjectConfig({ ...projectConfig, dbEnabled: e.target.checked })}
-                      className="rounded bg-slate-800 border-slate-600 text-indigo-500"
-                    />
-                    Aktif
-                  </label>
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="col-span-2">
-                    <label className="block text-[10px] text-slate-400 mb-0.5">Host & Port:</label>
-                    <div className="flex gap-1">
-                      <input
-                        type="text"
-                        value={projectConfig.dbHost}
-                        onChange={(e) => setProjectConfig({ ...projectConfig, dbHost: e.target.value })}
-                        placeholder="127.0.0.1"
-                        className="w-3/4 rounded bg-slate-800 border border-slate-600 px-2 py-1 text-xs text-white focus:outline-none focus:border-indigo-400 font-mono"
-                      />
-                      <input
-                        type="number"
-                        value={projectConfig.dbPort}
-                        onChange={(e) => setProjectConfig({ ...projectConfig, dbPort: Number(e.target.value) || 5432 })}
-                        placeholder="5432"
-                        className="w-1/4 rounded bg-slate-800 border border-slate-600 px-1 py-1 text-xs text-white focus:outline-none focus:border-indigo-400 font-mono"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] text-slate-400 mb-0.5">Database:</label>
-                    <input
-                      type="text"
-                      value={projectConfig.dbName}
-                      onChange={(e) => setProjectConfig({ ...projectConfig, dbName: e.target.value })}
-                      placeholder="ecommerce"
-                      className="w-full rounded bg-slate-800 border border-slate-600 px-2 py-1 text-xs text-white focus:outline-none focus:border-indigo-400 font-mono"
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-[10px] text-slate-400 mb-0.5">DB User:</label>
-                    <input
-                      type="text"
-                      value={projectConfig.dbUser}
-                      onChange={(e) => setProjectConfig({ ...projectConfig, dbUser: e.target.value })}
-                      placeholder="postgres"
-                      className="w-full rounded bg-slate-800 border border-slate-600 px-2 py-1 text-xs text-white focus:outline-none focus:border-indigo-400 font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] text-slate-400 mb-0.5">DB Password:</label>
-                    <input
-                      type="password"
-                      value={projectConfig.dbPassword || ''}
-                      onChange={(e) => setProjectConfig({ ...projectConfig, dbPassword: e.target.value })}
-                      placeholder="••••••••"
-                      className="w-full rounded bg-slate-800 border border-slate-600 px-2 py-1 text-xs text-white focus:outline-none focus:border-indigo-400 font-mono"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-[10px] text-slate-400 mb-0.5">Tabel Kunci Konten / Produk:</label>
-                  <input
-                    type="text"
-                    value={projectConfig.dbKeyTables}
-                    onChange={(e) => setProjectConfig({ ...projectConfig, dbKeyTables: e.target.value })}
-                    placeholder="products, categories, articles, content_posts, users, orders"
-                    className="w-full rounded bg-slate-800 border border-slate-600 px-2 py-1 text-[11px] text-white focus:outline-none focus:border-indigo-400 font-mono"
-                  />
-                </div>
-                <label className="flex items-center gap-1.5 text-[11px] text-amber-300 cursor-pointer pt-0.5">
+            {/* Card 2: Database PostgreSQL */}
+            <div className="p-3 rounded bg-slate-900/60 border border-slate-700/70 space-y-2">
+              <div className="flex items-center justify-between">
+                <h5 className="font-semibold text-xs text-indigo-400 flex items-center gap-1.5">
+                  🗄️ Database PostgreSQL Server
+                </h5>
+                <label className="text-[11px] text-slate-300 flex items-center gap-1 cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={projectConfig.dbReadOnly}
-                    onChange={(e) => setProjectConfig({ ...projectConfig, dbReadOnly: e.target.checked })}
-                    className="rounded bg-slate-800 border-slate-600 text-amber-500"
+                    checked={projectConfig.dbEnabled}
+                    onChange={(e) => setProjectConfig({ ...projectConfig, dbEnabled: e.target.checked })}
+                    className="rounded bg-slate-800 border-slate-600 text-indigo-500"
                   />
-                  <span>🛡️ Mode Aman (Hanya izinkan SELECT, tolak DROP/DELETE)</span>
+                  Aktif
                 </label>
               </div>
-
-              {/* Card 3: Portal Admin Zelvira */}
-              <div className="p-3 rounded bg-slate-900/60 border border-slate-700/70 space-y-2">
-                <h5 className="font-semibold text-xs text-emerald-400 flex items-center gap-1.5">
-                  🔐 Portal Admin Zelvira (admin.zelvira.my.id)
-                </h5>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="col-span-2">
+                  <label className="block text-[10px] text-slate-400 mb-0.5">Host & Port:</label>
+                  <div className="flex gap-1">
+                    <input
+                      type="text"
+                      value={projectConfig.dbHost}
+                      onChange={(e) => setProjectConfig({ ...projectConfig, dbHost: e.target.value })}
+                      placeholder="127.0.0.1"
+                      className="w-3/4 rounded bg-slate-800 border border-slate-600 px-2 py-1 text-xs text-white focus:outline-none focus:border-indigo-400 font-mono"
+                    />
+                    <input
+                      type="number"
+                      value={projectConfig.dbPort}
+                      onChange={(e) => setProjectConfig({ ...projectConfig, dbPort: Number(e.target.value) || 5432 })}
+                      placeholder="5432"
+                      className="w-1/4 rounded bg-slate-800 border border-slate-600 px-1 py-1 text-xs text-white focus:outline-none focus:border-indigo-400 font-mono"
+                    />
+                  </div>
+                </div>
                 <div>
-                  <label className="block text-[11px] text-slate-300 mb-1">URL Portal Admin:</label>
+                  <label className="block text-[10px] text-slate-400 mb-0.5">Database:</label>
                   <input
                     type="text"
-                    value={projectConfig.adminPortalUrl}
-                    onChange={(e) => setProjectConfig({ ...projectConfig, adminPortalUrl: e.target.value })}
-                    placeholder="https://admin.zelvira.my.id"
+                    value={projectConfig.dbName}
+                    onChange={(e) => setProjectConfig({ ...projectConfig, dbName: e.target.value })}
+                    placeholder="ecommerce"
+                    className="w-full rounded bg-slate-800 border border-slate-600 px-2 py-1 text-xs text-white focus:outline-none focus:border-indigo-400 font-mono"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] text-slate-400 mb-0.5">DB User:</label>
+                  <input
+                    type="text"
+                    value={projectConfig.dbUser}
+                    onChange={(e) => setProjectConfig({ ...projectConfig, dbUser: e.target.value })}
+                    placeholder="postgres"
+                    className="w-full rounded bg-slate-800 border border-slate-600 px-2 py-1 text-xs text-white focus:outline-none focus:border-indigo-400 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-slate-400 mb-0.5">DB Password:</label>
+                  <input
+                    type="password"
+                    value={projectConfig.dbPassword || ''}
+                    onChange={(e) => setProjectConfig({ ...projectConfig, dbPassword: e.target.value })}
+                    placeholder="••••••••"
+                    className="w-full rounded bg-slate-800 border border-slate-600 px-2 py-1 text-xs text-white focus:outline-none focus:border-indigo-400 font-mono"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] text-slate-400 mb-0.5">Tabel Kunci Konten / Produk:</label>
+                <input
+                  type="text"
+                  value={projectConfig.dbKeyTables}
+                  onChange={(e) => setProjectConfig({ ...projectConfig, dbKeyTables: e.target.value })}
+                  placeholder="products, categories, articles, content_posts, users, orders"
+                  className="w-full rounded bg-slate-800 border border-slate-600 px-2 py-1 text-[11px] text-white focus:outline-none focus:border-indigo-400 font-mono"
+                />
+              </div>
+              <label className="flex items-center gap-1.5 text-[11px] text-amber-300 cursor-pointer pt-0.5">
+                <input
+                  type="checkbox"
+                  checked={projectConfig.dbReadOnly}
+                  onChange={(e) => setProjectConfig({ ...projectConfig, dbReadOnly: e.target.checked })}
+                  className="rounded bg-slate-800 border-slate-600 text-amber-500"
+                />
+                <span>🛡️ Mode Aman (Hanya izinkan SELECT, tolak DROP/DELETE)</span>
+              </label>
+            </div>
+
+            {/* Card 3: Portal Admin Zelvira */}
+            <div className="p-3 rounded bg-slate-900/60 border border-slate-700/70 space-y-2">
+              <h5 className="font-semibold text-xs text-emerald-400 flex items-center gap-1.5">
+                🔐 Portal Admin Zelvira (admin.zelvira.my.id)
+              </h5>
+              <div>
+                <label className="block text-[11px] text-slate-300 mb-1">URL Portal Admin:</label>
+                <input
+                  type="text"
+                  value={projectConfig.adminPortalUrl}
+                  onChange={(e) => setProjectConfig({ ...projectConfig, adminPortalUrl: e.target.value })}
+                  placeholder="https://admin.zelvira.my.id"
+                  className="w-full rounded bg-slate-800 border border-slate-600 px-2 py-1 text-xs text-white focus:outline-none focus:border-emerald-400 font-mono"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] text-slate-400 mb-0.5">Metode Autentikasi:</label>
+                  <select
+                    value={projectConfig.adminAuthType}
+                    onChange={(e) => setProjectConfig({ ...projectConfig, adminAuthType: e.target.value as any })}
+                    className="w-full rounded bg-slate-800 border border-slate-600 px-2 py-1 text-xs text-white focus:outline-none focus:border-emerald-400"
+                  >
+                    <option value="api_token">API Token (Bearer)</option>
+                    <option value="credentials">Akun Login (Username & Password)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] text-slate-400 mb-0.5">Endpoint Buat Konten:</label>
+                  <input
+                    type="text"
+                    value={projectConfig.adminContentEndpoint}
+                    onChange={(e) => setProjectConfig({ ...projectConfig, adminContentEndpoint: e.target.value })}
+                    placeholder="/api/articles"
                     className="w-full rounded bg-slate-800 border border-slate-600 px-2 py-1 text-xs text-white focus:outline-none focus:border-emerald-400 font-mono"
                   />
                 </div>
+              </div>
+
+              {projectConfig.adminAuthType === 'api_token' ? (
+                <div>
+                  <label className="block text-[10px] text-slate-400 mb-0.5">Admin API Token / Bearer Key:</label>
+                  <input
+                    type="password"
+                    value={projectConfig.adminToken || ''}
+                    onChange={(e) => setProjectConfig({ ...projectConfig, adminToken: e.target.value })}
+                    placeholder="Masukkan Token API (misal: zelvira-...)"
+                    className="w-full rounded bg-slate-800 border border-slate-600 px-2 py-1 text-xs text-white focus:outline-none focus:border-emerald-400 font-mono"
+                  />
+                </div>
+              ) : (
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-[10px] text-slate-400 mb-0.5">Metode Autentikasi:</label>
-                    <select
-                      value={projectConfig.adminAuthType}
-                      onChange={(e) => setProjectConfig({ ...projectConfig, adminAuthType: e.target.value as any })}
-                      className="w-full rounded bg-slate-800 border border-slate-600 px-2 py-1 text-xs text-white focus:outline-none focus:border-emerald-400"
-                    >
-                      <option value="api_token">API Token (Bearer)</option>
-                      <option value="credentials">Akun Login (Username & Password)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] text-slate-400 mb-0.5">Endpoint Buat Konten:</label>
+                    <label className="block text-[10px] text-slate-400 mb-0.5">Username Akun Content:</label>
                     <input
                       type="text"
-                      value={projectConfig.adminContentEndpoint}
-                      onChange={(e) => setProjectConfig({ ...projectConfig, adminContentEndpoint: e.target.value })}
-                      placeholder="/api/articles"
+                      value={projectConfig.adminUsername || ''}
+                      onChange={(e) => setProjectConfig({ ...projectConfig, adminUsername: e.target.value })}
+                      placeholder="content_creator"
+                      className="w-full rounded bg-slate-800 border border-slate-600 px-2 py-1 text-xs text-white focus:outline-none focus:border-emerald-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-400 mb-0.5">Password Akun Content:</label>
+                    <input
+                      type="password"
+                      value={projectConfig.adminPassword || ''}
+                      onChange={(e) => setProjectConfig({ ...projectConfig, adminPassword: e.target.value })}
+                      placeholder="••••••••"
                       className="w-full rounded bg-slate-800 border border-slate-600 px-2 py-1 text-xs text-white focus:outline-none focus:border-emerald-400 font-mono"
                     />
                   </div>
                 </div>
+              )}
 
-                {projectConfig.adminAuthType === 'api_token' ? (
-                  <div>
-                    <label className="block text-[10px] text-slate-400 mb-0.5">Admin API Token / Bearer Key:</label>
-                    <input
-                      type="password"
-                      value={projectConfig.adminToken || ''}
-                      onChange={(e) => setProjectConfig({ ...projectConfig, adminToken: e.target.value })}
-                      placeholder="Masukkan Token API (misal: zelvira-...)"
-                      className="w-full rounded bg-slate-800 border border-slate-600 px-2 py-1 text-xs text-white focus:outline-none focus:border-emerald-400 font-mono"
-                    />
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-[10px] text-slate-400 mb-0.5">Username Akun Content:</label>
-                      <input
-                        type="text"
-                        value={projectConfig.adminUsername || ''}
-                        onChange={(e) => setProjectConfig({ ...projectConfig, adminUsername: e.target.value })}
-                        placeholder="content_creator"
-                        className="w-full rounded bg-slate-800 border border-slate-600 px-2 py-1 text-xs text-white focus:outline-none focus:border-emerald-400"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] text-slate-400 mb-0.5">Password Akun Content:</label>
-                      <input
-                        type="password"
-                        value={projectConfig.adminPassword || ''}
-                        onChange={(e) => setProjectConfig({ ...projectConfig, adminPassword: e.target.value })}
-                        placeholder="••••••••"
-                        className="w-full rounded bg-slate-800 border border-slate-600 px-2 py-1 text-xs text-white focus:outline-none focus:border-emerald-400 font-mono"
-                      />
-                    </div>
-                  </div>
-                )}
+              <label className="flex items-center gap-1.5 text-[11px] text-emerald-300 cursor-pointer pt-0.5">
+                <input
+                  type="checkbox"
+                  checked={projectConfig.adminForceDraft}
+                  onChange={(e) => setProjectConfig({ ...projectConfig, adminForceDraft: e.target.checked })}
+                  className="rounded bg-slate-800 border-slate-600 text-emerald-500"
+                />
+                <span>🔒 Wajibkan Status Draft (Cegah artikel langsung publish tanpa review)</span>
+              </label>
+            </div>
 
-                <label className="flex items-center gap-1.5 text-[11px] text-emerald-300 cursor-pointer pt-0.5">
+            {/* Card 4: SOP Agent & Keamanan Sistem */}
+            <div className="p-3 rounded bg-slate-900/60 border border-slate-700/70 space-y-2">
+              <h5 className="font-semibold text-xs text-amber-400 flex items-center gap-1.5">
+                🛡️ Hak Akses Server & Keamanan Agen
+              </h5>
+              <div className="space-y-1.5 pt-1">
+                <label className="flex items-center gap-1.5 text-[11px] text-slate-300 cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={projectConfig.adminForceDraft}
-                    onChange={(e) => setProjectConfig({ ...projectConfig, adminForceDraft: e.target.checked })}
-                    className="rounded bg-slate-800 border-slate-600 text-emerald-500"
+                    checked={projectConfig.allowBashExecution}
+                    onChange={(e) => setProjectConfig({ ...projectConfig, allowBashExecution: e.target.checked })}
+                    className="rounded bg-slate-800 border-slate-600 text-sky-500"
                   />
-                  <span>🔒 Wajibkan Status Draft (Cegah artikel langsung publish tanpa review)</span>
+                  <span>Izinkan agen membaca file & menjalankan bash/curl di server</span>
+                </label>
+                <label className="flex items-center gap-1.5 text-[11px] text-slate-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={projectConfig.requireConfirmationForDestructive}
+                    onChange={(e) => setProjectConfig({ ...projectConfig, requireConfirmationForDestructive: e.target.checked })}
+                    className="rounded bg-slate-800 border-slate-600 text-amber-500"
+                  />
+                  <span>Tolak semua perintah destruktif (rm -rf, DROP TABLE, dll)</span>
                 </label>
               </div>
 
-              {/* Card 4: SOP Agent & Keamanan Sistem */}
-              <div className="p-3 rounded bg-slate-900/60 border border-slate-700/70 space-y-2">
-                <h5 className="font-semibold text-xs text-amber-400 flex items-center gap-1.5">
-                  🛡️ Hak Akses Server & Keamanan Agen
-                </h5>
-                <div className="space-y-1.5 pt-1">
-                  <label className="flex items-center gap-1.5 text-[11px] text-slate-300 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={projectConfig.allowBashExecution}
-                      onChange={(e) => setProjectConfig({ ...projectConfig, allowBashExecution: e.target.checked })}
-                      className="rounded bg-slate-800 border-slate-600 text-sky-500"
-                    />
-                    <span>Izinkan agen membaca file & menjalankan bash/curl di server</span>
-                  </label>
-                  <label className="flex items-center gap-1.5 text-[11px] text-slate-300 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={projectConfig.requireConfirmationForDestructive}
-                      onChange={(e) => setProjectConfig({ ...projectConfig, requireConfirmationForDestructive: e.target.checked })}
-                      className="rounded bg-slate-800 border-slate-600 text-amber-500"
-                    />
-                    <span>Tolak semua perintah destruktif (rm -rf, DROP TABLE, dll)</span>
-                  </label>
-                </div>
-
-                <div className="mt-2.5 p-2 rounded bg-slate-800/80 border border-slate-700/60 text-[10.5px] text-slate-400 space-y-1">
-                  <b className="text-slate-300 block">Bagaimana Agent Menggunakan Data Ini?</b>
-                  <p>
-                    • <b>contencreator</b>: Otomatis memformat payload JSON konten ke target <code>admin.zelvira.my.id</code> dengan status <code>draft</code>.
-                  </p>
-                  <p>
-                    • <b>seo</b>: Menganalisa struktur URL, keyword, dan heading artikel/katalog produk.
-                  </p>
-                  <p>
-                    • <b>backend</b>: Mengetahui path <code>{projectConfig.ecommercePath}</code> dan tabel database PostgreSQL <code>{projectConfig.dbName}</code>.
-                  </p>
-                </div>
+              <div className="mt-2.5 p-2 rounded bg-slate-800/80 border border-slate-700/60 text-[10.5px] text-slate-400 space-y-1">
+                <b className="text-slate-300 block">Bagaimana Agent Menggunakan Data Ini?</b>
+                <p>
+                  • <b>contencreator</b>: Otomatis memformat payload JSON konten ke target <code>admin.zelvira.my.id</code> dengan status <code>draft</code>.
+                </p>
+                <p>
+                  • <b>seo</b>: Menganalisa struktur URL, keyword, dan heading artikel/katalog produk.
+                </p>
+                <p>
+                  • <b>backend</b>: Mengetahui path <code>{projectConfig.ecommercePath}</code> dan tabel database PostgreSQL <code>{projectConfig.dbName}</code>.
+                </p>
               </div>
             </div>
+          </div>
 
-            {/* Action Bar */}
-            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-700/60">
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleSaveProjectConfig}
-                  disabled={projectBusy}
-                  className="rounded bg-emerald-600 px-3 py-1.5 font-medium text-xs text-white hover:bg-emerald-500 disabled:opacity-50 transition-colors shadow-sm"
-                >
-                  {projectBusy ? 'Menyimpan…' : '💾 Simpan Konfigurasi'}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleTestProjectIntegration}
-                  disabled={projectTesting}
-                  className="rounded bg-slate-700 px-3 py-1.5 font-medium text-xs text-slate-200 hover:bg-slate-600 disabled:opacity-50 transition-colors"
-                >
-                  {projectTesting ? 'Menguji…' : '🧪 Uji Status Koneksi'}
-                </button>
-              </div>
-
+          {/* Action Bar */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-700/60">
+            <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={handleSyncProjectToAgents}
+                onClick={handleSaveProjectConfig}
                 disabled={projectBusy}
-                className="rounded bg-gradient-to-r from-emerald-600 to-teal-600 px-3.5 py-1.5 font-semibold text-xs text-white hover:brightness-110 disabled:opacity-50 transition-all shadow"
+                className="rounded bg-emerald-600 px-3 py-1.5 font-medium text-xs text-white hover:bg-emerald-500 disabled:opacity-50 transition-colors shadow-sm cursor-pointer"
               >
-                {projectBusy ? 'Sinkronisasi…' : '⚡ Terapkan & Sinkronkan SOUL.md ke Semua Agent'}
+                {projectBusy ? 'Menyimpan…' : '💾 Simpan Konfigurasi'}
+              </button>
+              <button
+                type="button"
+                onClick={handleTestProjectIntegration}
+                disabled={projectTesting}
+                className="rounded bg-slate-700 px-3 py-1.5 font-medium text-xs text-slate-200 hover:bg-slate-600 disabled:opacity-50 transition-colors cursor-pointer"
+              >
+                {projectTesting ? 'Menguji…' : '🧪 Uji Status Koneksi'}
               </button>
             </div>
-          </div>
-        )}
 
-        {/* Tabel Profil Agent Aktif & Status Model */}
-        {modelData?.profiles && modelData.profiles.length > 0 && (
-          <div className="mt-4 pt-3 border-t border-slate-700/60">
-            <h4 className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-2">
-              Status Model per Profil Agent ({modelData.profiles.length} agent):
-            </h4>
-            <div className="overflow-x-auto">
-              <table className="w-full text-[11px] text-left border border-slate-700/80 rounded">
-                <thead className="bg-slate-800 text-slate-400">
-                  <tr>
-                    <th className="px-2 py-1.5 border-b border-slate-700">Agent</th>
-                    <th className="px-2 py-1.5 border-b border-slate-700">Model Aktif</th>
-                    <th className="px-2 py-1.5 border-b border-slate-700">Status</th>
-                    <th className="px-2 py-1.5 border-b border-slate-700 text-right">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800">
-                  {modelData.profiles.map((p) => (
-                    <tr key={p.name} className="hover:bg-slate-800/40">
-                      <td className="px-2 py-1.5 font-medium text-slate-200">{p.name}</td>
-                      <td className="px-2 py-1.5 font-mono text-slate-300">
-                        {p.model || modelData.defaultModel || 'gpt-4o-mini'}
-                      </td>
-                      <td className="px-2 py-1.5">
-                        {p.isDefault ? (
-                          <span className="text-emerald-300">✓ Mengikuti Default Hermes</span>
-                        ) : (
-                          <span className="text-amber-300">Custom Override</span>
-                        )}
-                      </td>
-                      <td className="px-2 py-1.5 text-right">
-                        {!p.isDefault && (
-                          <button
-                            onClick={() => handleResetProfile(p.name)}
-                            disabled={modelBusy}
-                            className="rounded border border-slate-600 px-2 py-0.5 text-[10px] text-slate-300 hover:bg-slate-700"
-                          >
-                            Reset ke Default
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <button
+              type="button"
+              onClick={handleSyncProjectToAgents}
+              disabled={projectBusy}
+              className="rounded bg-gradient-to-r from-emerald-600 to-teal-600 px-3.5 py-1.5 font-semibold text-xs text-white hover:brightness-110 disabled:opacity-50 transition-all shadow cursor-pointer"
+            >
+              {projectBusy ? 'Sinkronisasi…' : '⚡ Terapkan & Sinkronkan SOUL.md ke Semua Agent'}
+            </button>
           </div>
-        )}
-      </section>
+        </section>
+      )}
 
-      {/* ---------- gateway ---------- */}
-      {/* "Butuh restart" dari SATU sumber kebenaran (bukan hitungan panel ini).
-          Kuning = tersimpan belum aktif; abu = tak bisa dipastikan. */}
-      <section className="mb-5">
-        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Gateway</h3>
-        <div className="space-y-1 rounded border border-slate-700 bg-slate-800/50 p-2 text-xs">
-          <div>
-            restart gateway:{' '}
-            {needsGatewayRestart === true ? (
-              <span className="text-amber-300">butuh — config lebih baru dari start gateway (served tersimpan, BELUM aktif)</span>
-            ) : needsGatewayRestart === false ? (
-              <span className="text-emerald-300">tidak — served yang tersimpan sudah aktif</span>
-            ) : (
-              <span className="text-slate-500">tak pasti — start gateway tak terbaca</span>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* ---------- kerja di kantor ---------- */}
-      {/* Bukti kenapa agent duduk di mejanya walau papan kosong. Cron ditulis sebagai KEBIJAKAN:
-          Hermes tidak menyimpan pemilik cron, jadi panel tidak menyebut agent untuknya. */}
-      <section className="mb-5">
-        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Kerja di kantor</h3>
-        <div className="space-y-1 rounded border border-slate-700 bg-slate-800/50 p-2 text-xs">
-          <div>
-            chat hidup:{' '}
-            {work.chatLive.length ? <span className="font-mono">{work.chatLive.join(', ')}</span> : <span className="text-slate-500">tidak ada</span>}
-          </div>
-          <div>
-            {work.cron ? (
-              <>
-                cron <span className="font-mono">{work.cron.name}</span> jalan {age(work.cron.agoSec)} lalu —
-                kebijakan: agent yang bebas kembali ke mejanya
-              </>
-            ) : (
-              <span className="text-slate-500">tidak ada cron agent yang jalan dalam 2 menit terakhir</span>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* ---------- persetujuan ---------- */}
-      <section className="mb-5">
-        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
-          Persetujuan
-          {appr && (
-            <span className={`ml-2 ${appr.pending.length > 0 ? 'text-red-400' : 'text-slate-500'}`}>
-              · {appr.pending.length} menunggu
-            </span>
-          )}
-        </h3>
-        {apprErr ? (
-          <div className="rounded border border-red-800 bg-red-950/50 p-2 text-xs">
-            <b>Tidak bisa membaca keadaan persetujuan.</b>
-            <div className="mt-1 text-red-300">{apprErr}</div>
-          </div>
-        ) : !appr ? (
-          <div className="rounded border border-slate-700 bg-slate-800/50 p-2 text-xs text-slate-400">membaca…</div>
-        ) : (
-          <div className="space-y-2 text-xs">
-            <div className="rounded border border-slate-700 bg-slate-800/50 p-2">
-              {appr.policy.failure ? (
-                <span className="text-red-300">Kebijakan tidak terbaca: {appr.policy.failure}</span>
-              ) : (
-                <>
-                  kebijakan <span className="font-mono">{appr.policy.mode}</span>
-                  <span className="text-slate-400">
-                    {' '}
-                    · tunggu {appr.policy.timeoutSec ?? '—'} dtk · {appr.policy.denyCount} aturan deny
-                  </span>
-                  {appr.policy.ageSeconds > STALE_APPROVAL && (
-                    <span className="ml-2 text-amber-400">· BASI ({age(appr.policy.ageSeconds)})</span>
-                  )}
-                </>
-              )}
-            </div>
-
-            {appr.pending.length === 0 ? (
-              <div className="rounded border border-slate-700 bg-slate-800/50 p-2 text-slate-400">
-                Tidak ada yang menunggu keputusan kamu.
-              </div>
-            ) : (
-              <div className="space-y-1">
-                {appr.pending.map((w) => (
-                  <div key={w.id} className="rounded border border-red-800 bg-red-950/40 p-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="truncate font-semibold text-red-300">{w.title}</span>
-                      <span className="font-mono text-[11px] text-slate-400">{w.id}</span>
-                    </div>
-                    <div className="mt-1 text-red-200/80">{w.reason.reason}</div>
-                  </div>
-                ))}
-                {appr.blockedAgents.length > 0 && (
-                  <div className="text-[11px] text-red-400/80">
-                    agent berhenti: {appr.blockedAgents.join(' · ')}
-                  </div>
+      {/* ============================================================== */}
+      {/* TAB 3: GATEWAY & OPERASIONAL KANTOR                            */}
+      {/* ============================================================== */}
+      {systemTab === 'gateway' && (
+        <div className="space-y-5">
+          {/* Gateway */}
+          <section className="rounded-lg border border-slate-700 bg-slate-900/60 p-4 text-xs">
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Gateway</h3>
+            <div className="space-y-1 rounded border border-slate-700 bg-slate-800/50 p-2 text-xs">
+              <div>
+                restart gateway:{' '}
+                {needsGatewayRestart === true ? (
+                  <span className="text-amber-300">butuh — config lebih baru dari start gateway (served tersimpan, BELUM aktif)</span>
+                ) : needsGatewayRestart === false ? (
+                  <span className="text-emerald-300">tidak — served yang tersimpan sudah aktif</span>
+                ) : (
+                  <span className="text-slate-500">tak pasti — start gateway tak terbaca</span>
                 )}
               </div>
-            )}
-            {(appr.notRead ?? 0) > 0 && (
-              <div className="text-[11px] text-amber-400">{appr.notRead} task tidak dibaca detailnya — daftar ini mungkin kurang</div>
-            )}
-
-            <div className="rounded border border-slate-700 bg-slate-800/50 p-2 text-slate-400">
-              {appr.patterns.failure ? (
-                <span className="text-amber-300">Pola approval tidak terbaca: {appr.patterns.failure}</span>
-              ) : appr.patterns.ageSeconds > STALE_APPROVAL ? (
-                <span className="text-amber-400">Pola approval BASI ({age(appr.patterns.ageSeconds)})</span>
-              ) : appr.patterns.count === 0 ? (
-                `Pola approval ${appr.patterns.windowDays} hari: belum ada data.`
-              ) : (
-                <>
-                  {appr.patterns.count} pola sering disetujui ({appr.patterns.windowDays} hari):{' '}
-                  <span className="font-mono text-slate-300">
-                    {appr.patterns.proposals
-                      .slice(0, 5)
-                      .map((p) => `${p.pattern} ×${p.count}`)
-                      .join(' · ')}
-                  </span>
-                </>
-              )}
             </div>
-          </div>
-        )}
-      </section>
+          </section>
+
+          {/* Kerja di kantor */}
+          <section className="rounded-lg border border-slate-700 bg-slate-900/60 p-4 text-xs">
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Kerja di kantor</h3>
+            <div className="space-y-1 rounded border border-slate-700 bg-slate-800/50 p-2 text-xs">
+              <div>
+                chat hidup:{' '}
+                {work.chatLive.length ? <span className="font-mono">{work.chatLive.join(', ')}</span> : <span className="text-slate-500">tidak ada</span>}
+              </div>
+              <div>
+                {work.cron ? (
+                  <>
+                    cron <span className="font-mono">{work.cron.name}</span> jalan {age(work.cron.agoSec)} lalu —
+                    kebijakan: agent yang bebas kembali ke mejanya
+                  </>
+                ) : (
+                  <span className="text-slate-500">tidak ada cron agent yang jalan dalam 2 menit terakhir</span>
+                )}
+              </div>
+            </div>
+          </section>
+
+          {/* Persetujuan */}
+          <section className="rounded-lg border border-slate-700 bg-slate-900/60 p-4 text-xs">
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+              Persetujuan
+              {appr && (
+                <span className={`ml-2 ${appr.pending.length > 0 ? 'text-red-400' : 'text-slate-500'}`}>
+                  · {appr.pending.length} menunggu
+                </span>
+              )}
+            </h3>
+            {apprErr ? (
+              <div className="rounded border border-red-800 bg-red-950/50 p-2 text-xs">
+                <b>Tidak bisa membaca keadaan persetujuan.</b>
+                <div className="mt-1 text-red-300">{apprErr}</div>
+              </div>
+            ) : !appr ? (
+              <div className="rounded border border-slate-700 bg-slate-800/50 p-2 text-xs text-slate-400">membaca…</div>
+            ) : (
+              <div className="space-y-2 text-xs">
+                <div className="rounded border border-slate-700 bg-slate-800/50 p-2">
+                  {appr.policy.failure ? (
+                    <span className="text-red-300">Kebijakan tidak terbaca: {appr.policy.failure}</span>
+                  ) : (
+                    <>
+                      kebijakan <span className="font-mono">{appr.policy.mode}</span>
+                      <span className="text-slate-400">
+                        {' '}
+                        · tunggu {appr.policy.timeoutSec ?? '—'} dtk · {appr.policy.denyCount} aturan deny
+                      </span>
+                      {appr.policy.ageSeconds > STALE_APPROVAL && (
+                        <span className="ml-2 text-amber-400">· BASI ({age(appr.policy.ageSeconds)})</span>
+                      )}
+                    </>
+                  )}
+                </div>
+
+                {appr.pending.length === 0 ? (
+                  <div className="rounded border border-slate-700 bg-slate-800/50 p-2 text-slate-400">
+                    Tidak ada yang menunggu keputusan kamu.
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    {appr.pending.map((w) => (
+                      <div key={w.id} className="rounded border border-red-800 bg-red-950/40 p-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate font-semibold text-red-300">{w.title}</span>
+                          <span className="font-mono text-[11px] text-slate-400">{w.id}</span>
+                        </div>
+                        <div className="mt-1 text-red-200/80">{w.reason.reason}</div>
+                      </div>
+                    ))}
+                    {appr.blockedAgents.length > 0 && (
+                      <div className="text-[11px] text-red-400/80">
+                        agent berhenti: {appr.blockedAgents.join(' · ')}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {(appr.notRead ?? 0) > 0 && (
+                  <div className="text-[11px] text-amber-400">{appr.notRead} task tidak dibaca detailnya — daftar ini mungkin kurang</div>
+                )}
+
+                <div className="rounded border border-slate-700 bg-slate-800/50 p-2 text-slate-400">
+                  {appr.patterns.failure ? (
+                    <span className="text-amber-300">Pola approval tidak terbaca: {appr.patterns.failure}</span>
+                  ) : appr.patterns.ageSeconds > STALE_APPROVAL ? (
+                    <span className="text-amber-400">Pola approval BASI ({age(appr.patterns.ageSeconds)})</span>
+                  ) : appr.patterns.count === 0 ? (
+                    `Pola approval ${appr.patterns.windowDays} hari: belum ada data.`
+                  ) : (
+                    <>
+                      {appr.patterns.count} pola sering disetujui ({appr.patterns.windowDays} hari):{' '}
+                      <span className="font-mono text-slate-300">
+                        {appr.patterns.proposals
+                          .slice(0, 5)
+                          .map((p) => `${p.pattern} ×${p.count}`)
+                          .join(' · ')}
+                      </span>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+          </section>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* TAB 4: BIAYA & OBSERVABILITAS                                  */}
+      {/* ============================================================== */}
+      {systemTab === 'observability' && (
+        <div className="space-y-5">
 
       {!data && !err && <div className="py-8 text-center text-sm text-slate-400">membaca…</div>}
 
@@ -1653,6 +1731,8 @@ export default function SystemPanel({ open, onClose }: { open: boolean; onClose:
           </section>
         </div>
       )}
-    </FullPanel>
+    </div>
+  )}
+</FullPanel>
   )
 }
