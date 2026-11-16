@@ -224,78 +224,87 @@ function createWallLogo(w = 2.4, h = 0.71, illuminated = true, haloColor = 0xf59
 }
 
 function zelviraOfficeRooftopTexture(): THREE.Texture {
-  return canvasTex(1024, (c, s) => {
-    // 1024x512 widescreen billboard texture
-    const bg = c.createLinearGradient(0, 0, s, 0)
-    bg.addColorStop(0, '#020617')
-    bg.addColorStop(0.25, '#0f172a')
-    bg.addColorStop(0.75, '#0f172a')
-    bg.addColorStop(1, '#020617')
-    c.fillStyle = bg
-    c.fillRect(0, 0, s, s)
+  const w = 2048
+  const h = 588
 
-    // Cyan & Gold futuristic LED neon border
-    c.strokeStyle = '#0284c7'
-    c.lineWidth = 14
-    c.strokeRect(18, 18, s - 36, s - 36)
-    c.strokeStyle = '#f59e0b'
-    c.lineWidth = 5
-    c.strokeRect(32, 32, s - 64, s - 64)
+  if (typeof document === 'undefined') {
+    return new THREE.Texture()
+  }
 
-    // Subtle tech matrix grid pattern
-    c.strokeStyle = 'rgba(56, 189, 248, 0.08)'
-    c.lineWidth = 1
-    for (let x = 40; x < s - 40; x += 32) {
-      c.beginPath()
-      c.moveTo(x, 40)
-      c.lineTo(x, s - 40)
-      c.stroke()
-    }
-    for (let y = 40; y < s - 40; y += 32) {
-      c.beginPath()
-      c.moveTo(40, y)
-      c.lineTo(s - 40, y)
-      c.stroke()
-    }
+  const cv = document.createElement('canvas')
+  cv.width = w
+  cv.height = h
+  const c = cv.getContext('2d')
+  if (!c) return new THREE.Texture()
 
-    // Glowing circular pedestal on the left where the real logo.png image sits
-    const logoCenter = s * 0.22
-    const glow = c.createRadialGradient(logoCenter, s / 2, 40, logoCenter, s / 2, 220)
-    glow.addColorStop(0, 'rgba(56, 189, 248, 0.28)')
-    glow.addColorStop(0.6, 'rgba(245, 158, 11, 0.14)')
-    glow.addColorStop(1, 'rgba(15, 23, 42, 0)')
-    c.fillStyle = glow
-    c.beginPath()
-    c.arc(logoCenter, s / 2, 220, 0, Math.PI * 2)
-    c.fill()
-
-    // Right side typography: "ZELVIRA OFFICE" & "★ VIRTUAL HEADQUARTERS ★"
-    const textCenter = s * 0.64
-
-    // Main header: "ZELVIRA"
-    c.font = '900 120px "Segoe UI", system-ui, -apple-system, sans-serif'
-    c.textAlign = 'center'
-    c.textBaseline = 'middle'
+  const renderContent = (logoImg?: HTMLImageElement) => {
+    // 1. Background putih bersih & cerah
     c.fillStyle = '#ffffff'
-    c.shadowColor = '#38bdf8'
-    c.shadowBlur = 20
-    c.fillText('ZELVIRA', textCenter, s / 2 - 50)
+    c.fillRect(0, 0, w, h)
 
-    // Subtitle: "OFFICE"
-    c.font = '800 78px "Segoe UI", system-ui, -apple-system, sans-serif'
-    c.fillStyle = '#38bdf8'
-    c.shadowColor = '#0284c7'
-    c.shadowBlur = 15
-    c.fillText('OFFICE', textCenter, s / 2 + 55)
+    // 2. Bingkai tepi bersih & halus
+    c.strokeStyle = '#e2e8f0'
+    c.lineWidth = 14
+    c.strokeRect(7, 7, w - 14, h - 14)
 
-    // Tagline: "★ VIRTUAL HEADQUARTERS ★"
-    c.font = '700 26px monospace'
-    c.fillStyle = '#f59e0b'
-    c.shadowColor = '#d97706'
-    c.shadowBlur = 8
-    c.fillText('★ VIRTUAL HEADQUARTERS ★', textCenter, s / 2 + 135)
-    c.shadowBlur = 0
-  })
+    c.strokeStyle = '#f1f5f9'
+    c.lineWidth = 4
+    c.strokeRect(20, 20, w - 40, h - 40)
+
+    if (logoImg && logoImg.complete && logoImg.naturalWidth > 0) {
+      // Menampilkan logo asli Zelvira dengan warna gradasi otentik di atas background putih
+      const imgAspect = logoImg.naturalWidth / logoImg.naturalHeight
+      const targetH = Math.round(h * 0.76)
+      const targetW = Math.round(targetH * imgAspect)
+      const targetX = Math.round((w - targetW) / 2)
+      const targetY = Math.round((h - targetH) / 2)
+      c.drawImage(logoImg, targetX, targetY, targetW, targetH)
+    } else {
+      // Fallback typography: Tulisan "ZELVIRA" dengan gradasi oranye -> magenta -> ungu di atas background putih
+      const grad = c.createLinearGradient(w * 0.22, 0, w * 0.78, 0)
+      grad.addColorStop(0, '#f48534') // Vibrant sunset orange
+      grad.addColorStop(0.5, '#ce4475') // Vibrant magenta rose
+      grad.addColorStop(1, '#a23d81') // Royal purple violet
+
+      c.font = '900 170px "Segoe UI", system-ui, -apple-system, sans-serif'
+      c.textAlign = 'center'
+      c.textBaseline = 'middle'
+      c.fillStyle = grad
+      c.fillText('ZELVIRA', w / 2, h / 2 - 25)
+
+      // Subtitle "VIRTUAL HEADQUARTERS" elegan
+      c.font = '700 36px "Segoe UI", monospace'
+      c.fillStyle = '#64748b'
+      c.fillText('★  VIRTUAL HEADQUARTERS  ★', w / 2, h / 2 + 80)
+    }
+  }
+
+  renderContent()
+
+  const tex = new THREE.CanvasTexture(cv)
+  tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping
+  tex.colorSpace = THREE.SRGBColorSpace
+  tex.anisotropy = 8
+
+  if (typeof window !== 'undefined' && typeof Image !== 'undefined') {
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.onload = () => {
+      renderContent(img)
+      tex.needsUpdate = true
+    }
+    img.onerror = () => {
+      // Fallback data URI bila /logo.png tidak tersedia
+      img.onload = () => {
+        renderContent(img)
+        tex.needsUpdate = true
+      }
+      img.src = LOGO_DATA_URI
+    }
+    img.src = '/logo.png'
+  }
+
+  return tex
 }
 
 /**
@@ -1438,12 +1447,6 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     const m = box(4.4, 0.5, WALL_T, 0xe8eef2, { rough: 0.6 })
     m.position.set(DOOR.x, 2.35, HALF_D)
     group.add(m)
-
-    // 1. Logo Zelvira eksterior di atas pintu masuk utama (luar gedung)
-    const exteriorDoorLogo = createWallLogo(3.2, 0.95, true)
-    exteriorDoorLogo.position.set(DOOR.x, 2.35, HALF_D + WALL_T / 2 + 0.03)
-    exteriorDoorLogo.name = 'office-exterior-logo-entrance'
-    group.add(exteriorDoorLogo)
   }
   // courtyard-facing walls, tertutup kaca arsitektural penuh dari lantai 1 ke lantai 2
   for (const s of courtyardWallSegments()) {
@@ -2083,15 +2086,16 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
       bezelBot.raycast = () => {}
       jumbotron.add(bezelBot)
 
-      // Layar LED Jumbotron: Menampilkan Logo Asli Zelvira dari /logo.png secara Megah dan Presisi
+      // Layar LED Jumbotron: Menampilkan Logo Asli Zelvira dengan Gradasi Cantik di atas Background Putih Bersih
+      const jumbotronTex = track(zelviraOfficeRooftopTexture())
       const jumbotronLogoMat = track(
         new THREE.MeshStandardMaterial({
-          map: logoTexture(),
-          roughness: 0.12,
+          map: jumbotronTex,
+          roughness: 0.15,
           metalness: 0.05,
           emissive: 0xffffff,
-          emissiveMap: logoTexture(),
-          emissiveIntensity: 1.25,
+          emissiveMap: jumbotronTex,
+          emissiveIntensity: 0.5,
         }),
       )
 
@@ -3335,21 +3339,6 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     nameFace.name = 'office-name-face'
     group.add(nameFace)
 
-    // Emblem logo Zelvira di atas papan nama kantor - warna lantai grey
-    const logoPlate = box(2.4, 1.6, 0.1, 0x9aa0a4, { rough: 0.4, metal: 0.4 })
-    logoPlate.position.set(DOOR.x, 4.8, HALF_D + 0.08)
-    logoPlate.name = 'office-logo-plate'
-    group.add(logoPlate)
-    const logoMat = new THREE.MeshStandardMaterial({
-      map: logoTexture(),
-      transparent: true,
-      roughness: 0.3,
-      metalness: 0.1,
-    })
-    const logoFace = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 1.4), logoMat)
-    logoFace.position.set(DOOR.x, 4.8, HALF_D + 0.15)
-    logoFace.name = 'office-zelvira-logo-entrance'
-    group.add(logoFace)
     // Kanopi kantilever mengambang di atas pintu masuk utama - warna lantai grey
     const canopy = box(7.0, 0.22, 2.6, 0x9aa0a4, { metal: 0.5, rough: 0.4 })
     canopy.position.set(DOOR.x, 3.1, HALF_D + 1.3)
