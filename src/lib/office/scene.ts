@@ -189,16 +189,17 @@ function selectiveShadow(root: THREE.Object3D, light: THREE.DirectionalLight) {
   light.shadow.normalBias = 0.02
 }
 
-function skyGradientTexture(stops = ['#9dc4e8', '#c6dcef', '#e2edf6', '#eef4f8']): THREE.Texture {
+function skyGradientTexture(stops = ['#0284c7', '#38bdf8', '#7dd3fc', '#bae6fd', '#fef3c7']): THREE.Texture {
   const c = document.createElement('canvas')
   c.width = 2
   c.height = 256
   const g = c.getContext('2d')!
   const grad = g.createLinearGradient(0, 0, 0, 256)
   grad.addColorStop(0, stops[0])
-  grad.addColorStop(0.45, stops[1])
-  grad.addColorStop(0.75, stops[2])
-  grad.addColorStop(1, stops[3])
+  grad.addColorStop(0.35, stops[1])
+  grad.addColorStop(0.65, stops[2])
+  grad.addColorStop(0.88, stops[3])
+  grad.addColorStop(1, stops[4] || stops[3])
   g.fillStyle = grad
   g.fillRect(0, 0, 2, 256)
   const t = new THREE.CanvasTexture(c)
@@ -268,7 +269,7 @@ export function createScene(
   scene.environmentIntensity = 1.0
   pmrem.dispose()
   scene.background = skyGradientTexture()
-  scene.fog = new THREE.Fog(0xd3e2ef, 80, 220)
+  scene.fog = new THREE.Fog(0xbce3f7, 90, 240)
 
   let hour = Number(
     new Intl.DateTimeFormat('en-GB', { hour: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' })

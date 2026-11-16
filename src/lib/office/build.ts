@@ -321,6 +321,61 @@ function earthTexture(base: string, dark: string, light: string) {
   })
 }
 
+function sandTexture(base = '#f4deb3', dark = '#e3c28c', light = '#fef3dc') {
+  return canvasTex(512, (c, s) => {
+    const rand = rng(42)
+    c.fillStyle = base
+    c.fillRect(0, 0, s, s)
+    for (let i = 0; i < 40; i++) {
+      const g = c.createRadialGradient(rand() * s, rand() * s, 6, rand() * s, rand() * s, 40 + rand() * 100)
+      g.addColorStop(0, rand() > 0.5 ? light : dark)
+      g.addColorStop(1, 'rgba(0,0,0,0)')
+      c.globalAlpha = 0.2 + rand() * 0.2
+      c.fillStyle = g
+      c.fillRect(0, 0, s, s)
+    }
+    c.globalAlpha = 1
+    for (let i = 0; i < 35; i++) {
+      c.strokeStyle = rand() > 0.5 ? dark : light
+      c.globalAlpha = 0.15 + rand() * 0.15
+      c.lineWidth = 1 + rand() * 2
+      const y = rand() * s
+      c.beginPath()
+      c.moveTo(0, y)
+      for (let x = 0; x <= s; x += 32) {
+        c.lineTo(x, y + Math.sin((x + i * 27) * 0.02) * 3)
+      }
+      c.stroke()
+    }
+    c.globalAlpha = 1
+  })
+}
+
+function oceanWaveTexture() {
+  return canvasTex(512, (c, s) => {
+    const grad = c.createLinearGradient(0, 0, 0, s)
+    grad.addColorStop(0, '#0284c7')
+    grad.addColorStop(0.45, '#06b6d4')
+    grad.addColorStop(1, '#38bdf8')
+    c.fillStyle = grad
+    c.fillRect(0, 0, s, s)
+    const rand = rng(109)
+    for (let i = 0; i < 50; i++) {
+      c.strokeStyle = '#ffffff'
+      c.globalAlpha = 0.15 + rand() * 0.25
+      c.lineWidth = 1 + rand() * 3
+      const y = rand() * s
+      c.beginPath()
+      c.moveTo(0, y)
+      for (let x = 0; x <= s; x += 25) {
+        c.lineTo(x, y + Math.sin((x + i * 19) * 0.035) * 4)
+      }
+      c.stroke()
+    }
+    c.globalAlpha = 1
+  })
+}
+
 function asphaltTexture(base: string, grit: string) {
   return canvasTex(512, (c, s) => {
     const rand = rng(77)
@@ -1207,12 +1262,74 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     group.add(m)
   }
 
-  // outer shell — DOLLHOUSE CUT at 1.6 m. At full height the shell turned the whole
-  // ground floor into a closed box: the three division rooms, the pantry, the
-  // leisure room and the lobby were all built and then hidden by their own walls.
-  // 1.6 m keeps every room edge, door and partition legible from the default
-  // camera while still reading as a building from outside.
+  // outer shell — Dinding gedung 3 lantai yang kokoh, realistis, dan tembus pandang.
+  // Parapet dasar 1.6 m menopang kaca arsitektural floor-to-ceiling dengan mullion aluminium
+  // sehingga gedung terlihat sebagai kantor nyata (real office) dengan dinding lengkap.
   const CUT_H = 1.6
+
+  const addFullHeightFacade = (
+    x1: number,
+    z1: number,
+    x2: number,
+    z2: number,
+    yFloor: number,
+    floorH = LEVEL_H,
+  ) => {
+    const horizontal = Math.abs(x2 - x1) > Math.abs(z2 - z1)
+    const len = horizontal ? Math.abs(x2 - x1) : Math.abs(z2 - z1)
+    if (len < 0.6) return
+    const cx = (x1 + x2) / 2
+    const cz = (z1 + z2) / 2
+    const glassH = floorH - CUT_H
+
+    // 1. Kaca arsitektural tembus pandang dari parapet ke balok plafon
+    const glassPane = new THREE.Mesh(
+      new THREE.BoxGeometry(horizontal ? len : 0.08, glassH, horizontal ? 0.08 : len),
+      new THREE.MeshPhysicalMaterial({
+        color: 0x90cdf4,
+        roughness: 0.06,
+        metalness: 0.1,
+        transmission: 0.88,
+        thickness: 0.05,
+        transparent: true,
+        opacity: 0.5,
+      }),
+    )
+    glassPane.position.set(cx, yFloor + CUT_H + glassH / 2, cz)
+    glassPane.raycast = () => {}
+    group.add(glassPane)
+
+    // 2. Balok lintel / spandrel transom arsitektural di puncak lantai
+    const header = box(
+      horizontal ? len : WALL_T + 0.06,
+      0.24,
+      horizontal ? WALL_T + 0.06 : len,
+      0x1e293b,
+      { metal: 0.6, rough: 0.3 },
+    )
+    header.position.set(cx, yFloor + floorH - 0.12, cz)
+    header.raycast = () => {}
+    group.add(header)
+
+    // 3. Mullion vertikal aluminium arsitektural tiap ~3.4 m
+    const mullionCount = Math.max(1, Math.round(len / 3.4))
+    const step = len / mullionCount
+    for (let i = 0; i <= mullionCount; i++) {
+      const mx = horizontal ? Math.min(x1, x2) + i * step : cx
+      const mz = horizontal ? cz : Math.min(z1, z2) + i * step
+      const mullion = box(
+        horizontal ? 0.09 : WALL_T + 0.05,
+        glassH,
+        horizontal ? WALL_T + 0.05 : 0.09,
+        0x0f172a,
+        { metal: 0.8, rough: 0.25 },
+      )
+      mullion.position.set(mx, yFloor + CUT_H + glassH / 2, mz)
+      mullion.raycast = () => {}
+      group.add(mullion)
+    }
+  }
+
   const shell = (x1: number, z1: number, x2: number, z2: number) => {
     const horizontal = Math.abs(x2 - x1) > Math.abs(z2 - z1)
     const len = horizontal ? Math.abs(x2 - x1) : Math.abs(z2 - z1)
@@ -1225,13 +1342,42 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     m.receiveShadow = true
     group.add(m)
   }
-  shell(-HALF_W, -HALF_D, HALF_W, -HALF_D) // north
+  shell(-HALF_W, -HALF_D, HALF_W, -HALF_D) // north (menghadap pantai)
+  addFullHeightFacade(-HALF_W, -HALF_D, HALF_W, -HALF_D, 0)
   shell(-HALF_W, -HALF_D, -HALF_W, HALF_D) // west
+  addFullHeightFacade(-HALF_W, -HALF_D, -HALF_W, HALF_D, 0)
   shell(HALF_W, -HALF_D, HALF_W, HALF_D) // east
+  addFullHeightFacade(HALF_W, -HALF_D, HALF_W, HALF_D, 0)
   shell(-HALF_W, HALF_D, -14, HALF_D) // south-west
+  addFullHeightFacade(-HALF_W, HALF_D, -14, HALF_D, 0)
   shell(14, HALF_D, HALF_W, HALF_D) // south-east
+  addFullHeightFacade(14, HALF_D, HALF_W, HALF_D, 0)
   shell(-14, HALF_D, DOOR.x - 2.2, HALF_D)
+  addFullHeightFacade(-14, HALF_D, DOOR.x - 2.2, HALF_D, 0)
   shell(DOOR.x + 2.2, HALF_D, 14, HALF_D)
+  addFullHeightFacade(DOOR.x + 2.2, HALF_D, 14, HALF_D, 0)
+
+  // Pilar Sudut Struktural Gedung 3 Lantai (Tinggi Penuh 10.2 meter)
+  for (const [colX, colZ] of [
+    [-HALF_W, -HALF_D],
+    [HALF_W, -HALF_D],
+    [-HALF_W, HALF_D],
+    [HALF_W, HALF_D],
+    [-14, HALF_D],
+    [14, HALF_D],
+    [-HALF_W, -9],
+    [HALF_W, -9],
+    [-HALF_W, 6.9],
+    [-HALF_W, -6.9],
+    [HALF_W, 11],
+  ] as const) {
+    const col3D = box(0.55, LEVEL_H * 3, 0.55, 0x1e293b, { metal: 0.7, rough: 0.3 })
+    col3D.position.set(colX, (LEVEL_H * 3) / 2, colZ)
+    col3D.castShadow = true
+    col3D.receiveShadow = true
+    col3D.raycast = () => {}
+    group.add(col3D)
+  }
   // entrance transom (this one is full height: it is the doorway)
   {
     const m = box(4.4, 0.5, WALL_T, 0xe8eef2, { rough: 0.6 })
@@ -1333,8 +1479,11 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     group.add(m)
   }
   shell1(-HALF_W, -HALF_D, HALF_W, -HALF_D)
+  addFullHeightFacade(-HALF_W, -HALF_D, HALF_W, -HALF_D, LEVEL_H)
   shell1(-HALF_W, -HALF_D, -HALF_W, -9)
+  addFullHeightFacade(-HALF_W, -HALF_D, -HALF_W, -9, LEVEL_H)
   shell1(HALF_W, -HALF_D, HALF_W, -9)
+  addFullHeightFacade(HALF_W, -HALF_D, HALF_W, -9, LEVEL_H)
   // The whiteboard wall: Rinjani's north wall is kept FULL height behind the board,
   // otherwise the green board would float above a 1.6 m parapet.
   {
@@ -1585,8 +1734,11 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
       group.add(m)
     }
     shell2(-HALF_W, -HALF_D, HALF_W, -HALF_D)
+    addFullHeightFacade(-HALF_W, -HALF_D, HALF_W, -HALF_D, LEVEL2_Y)
     shell2(HALF_W, -HALF_D, HALF_W, -9)
+    addFullHeightFacade(HALF_W, -HALF_D, HALF_W, -9, LEVEL2_Y)
     shell2(-HALF_W, -HALF_D, -HALF_W, -9)
+    addFullHeightFacade(-HALF_W, -HALF_D, -HALF_W, -9, LEVEL2_Y)
 
     // 3. Kaca balustrade observasi sky terrace (z = -9.0) menghadap courtyard
     const l2Rail = new THREE.Mesh(new THREE.BoxGeometry(deckW, 1.0, 0.06), glassMat)
@@ -3533,6 +3685,410 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     streetGroup.add(pylon)
   }
 
+  /* ------------------------------------------- tropical beach & ocean resort */
+  const sandTex = track(sandTexture('#f5dfb8', '#e2c08b', '#fdf2db'))
+  sandTex.wrapS = THREE.RepeatWrapping
+  sandTex.wrapT = THREE.RepeatWrapping
+  sandTex.repeat.set(16, 5)
+
+  const oceanTex = track(oceanWaveTexture())
+  oceanTex.wrapS = THREE.RepeatWrapping
+  oceanTex.wrapT = THREE.RepeatWrapping
+  oceanTex.repeat.set(12, 8)
+
+  const beachGroup = new THREE.Group()
+  beachGroup.name = 'tropical-beach'
+  streetGroup.add(beachGroup)
+
+  const sandMat = track(
+    new THREE.MeshStandardMaterial({
+      map: sandTex,
+      roughness: 0.98,
+      metalness: 0.02,
+      color: 0xfff0d6,
+    }),
+  )
+
+  // 1. Hamparan Pasir Pantai Luas (Utara Gedung, z = -21 s.d. -46)
+  const northBeach = new THREE.Mesh(new THREE.PlaneGeometry(210, 36), sandMat)
+  northBeach.rotation.x = -Math.PI / 2
+  northBeach.position.set(0, -0.045, -39)
+  northBeach.receiveShadow = true
+  northBeach.raycast = () => {}
+  beachGroup.add(northBeach)
+
+  // Sayap pantai barat & timur menyatu secara alami di samping gedung
+  const westBeach = new THREE.Mesh(new THREE.PlaneGeometry(54, 46), sandMat)
+  westBeach.rotation.x = -Math.PI / 2
+  westBeach.position.set(-54, -0.05, -20)
+  westBeach.receiveShadow = true
+  westBeach.raycast = () => {}
+  beachGroup.add(westBeach)
+
+  const eastBeach = new THREE.Mesh(new THREE.PlaneGeometry(54, 46), sandMat)
+  eastBeach.rotation.x = -Math.PI / 2
+  eastBeach.position.set(54, -0.05, -20)
+  eastBeach.receiveShadow = true
+  eastBeach.raycast = () => {}
+  beachGroup.add(eastBeach)
+
+  // 2. Samudra Tropis Turquoise (z = -44 s.d. -115)
+  const oceanMat = track(
+    new THREE.MeshPhysicalMaterial({
+      map: oceanTex,
+      color: 0x0ea5e9,
+      roughness: 0.08,
+      metalness: 0.1,
+      transmission: 0.45,
+      transparent: true,
+      opacity: 0.92,
+    }),
+  )
+
+  const northOcean = new THREE.Mesh(new THREE.PlaneGeometry(220, 72), oceanMat)
+  northOcean.rotation.x = -Math.PI / 2
+  northOcean.position.set(0, -0.035, -78)
+  northOcean.receiveShadow = true
+  northOcean.raycast = () => {}
+  beachGroup.add(northOcean)
+
+  // Buih Ombak Pantai Garis Putih Dinamis di Bibir Pantai (Shoreline Foam)
+  const foamMat = track(
+    new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 0.3,
+      transparent: true,
+      opacity: 0.65,
+    }),
+  )
+  const shoreFoam = new THREE.Mesh(new THREE.PlaneGeometry(210, 2.6), foamMat)
+  shoreFoam.rotation.x = -Math.PI / 2
+  shoreFoam.position.set(0, -0.028, -44.5)
+  shoreFoam.raycast = () => {}
+  beachGroup.add(shoreFoam)
+
+  // 3. Dermaga Kayu Pantai Tropis (Ocean Wooden Pier)
+  {
+    const pier = new THREE.Group()
+    pier.position.set(14, 0, -45) // mulai dari z = -22 sampai z = -68
+    pier.name = 'ocean-pier'
+
+    // Papan lantai kayu dermaga
+    const pierPlanks = box(3.2, 0.22, 46, 0x7c5836, { rough: 0.85, metal: 0.1 })
+    pierPlanks.position.set(0, 0.35, 0)
+    pierPlanks.castShadow = true
+    pierPlanks.receiveShadow = true
+    pierPlanks.raycast = () => {}
+    pier.add(pierPlanks)
+
+    // Pilar kayu penyangga dermaga menancap ke air & pasir
+    for (let pz = -21; pz <= 21; pz += 4.2) {
+      for (const px of [-1.35, 1.35]) {
+        const piling = cyl(0.12, 0.14, 1.8, 0x45311f, 8, 0.5)
+        piling.position.set(px, -0.2, pz)
+        piling.castShadow = true
+        piling.raycast = () => {}
+        pier.add(piling)
+      }
+      // Palang penguat horizontal
+      const crossBeam = box(2.9, 0.14, 0.14, 0x45311f, { rough: 0.9 })
+      crossBeam.position.set(0, 0.18, pz)
+      crossBeam.raycast = () => {}
+      pier.add(crossBeam)
+    }
+
+    // Pagar pembatas kayu di sisi dermaga (Handrail)
+    for (const rx of [-1.48, 1.48]) {
+      const railTop = box(0.12, 0.1, 46, 0x9a6b42, { rough: 0.7 })
+      railTop.position.set(rx, 1.05, 0)
+      railTop.raycast = () => {}
+      pier.add(railTop)
+
+      const railMid = box(0.08, 0.08, 46, 0x7c5836, { rough: 0.8 })
+      railMid.position.set(rx, 0.7, 0)
+      railMid.raycast = () => {}
+      pier.add(railMid)
+
+      for (let pz = -22; pz <= 22; pz += 3.8) {
+        const post = box(0.12, 0.8, 0.12, 0x7c5836, { rough: 0.8 })
+        post.position.set(rx, 0.7, pz)
+        post.raycast = () => {}
+        pier.add(post)
+      }
+    }
+
+    // Platform T di Ujung Dermaga (Ocean Viewing Deck)
+    const endDeck = box(9.0, 0.22, 6.0, 0x7c5836, { rough: 0.85 })
+    endDeck.position.set(0, 0.35, -23)
+    endDeck.castShadow = true
+    endDeck.receiveShadow = true
+    endDeck.raycast = () => {}
+    pier.add(endDeck)
+
+    // Pagar ujung platform
+    for (const [bx, bz, bw, bd] of [
+      [-4.4, -23, 0.12, 6.0],
+      [4.4, -23, 0.12, 6.0],
+      [0, -25.9, 8.9, 0.12],
+    ] as const) {
+      const pr = box(bw, 0.8, bd, 0x9a6b42, { rough: 0.7 })
+      pr.position.set(bx, 0.75, bz)
+      pr.raycast = () => {}
+      pier.add(pr)
+    }
+
+    // Bangku santai kayu di ujung dermaga menghadap lautan lepas
+    for (const sx of [-2.4, 2.4]) {
+      const bench = box(2.2, 0.45, 0.6, 0xb45309, { rough: 0.7 })
+      bench.position.set(sx, 0.6, -24.8)
+      bench.castShadow = true
+      bench.raycast = () => {}
+      pier.add(bench)
+    }
+
+    // Lentera brass bahari hangat di dermaga
+    for (const lz of [-18, 0, 18, -23]) {
+      const lantern = box(0.2, 0.32, 0.2, 0xd97706, { metal: 0.8, rough: 0.2 })
+      lantern.position.set(1.48, 1.25, lz)
+      lantern.raycast = () => {}
+      pier.add(lantern)
+      const lanternLight = new THREE.PointLight(0xf59e0b, hour >= 18 || hour < 6 ? 0.9 : 0.25, 8)
+      lanternLight.position.set(1.48, 1.35, lz)
+      pier.add(lanternLight)
+    }
+
+    beachGroup.add(pier)
+  }
+
+  // 4. Pohon Kelapa Tropis (Coconut Palms on the Beach)
+  const beachPalm = (x: number, z: number, scale = 1, rotY = 0) => {
+    const pt = new THREE.Group()
+    pt.position.set(x, 0, z)
+    pt.rotation.y = rotY
+
+    // Batang melengkung khas pohon kelapa pantai
+    const segments = 6
+    let prevY = 0
+    let prevX = 0
+    for (let i = 0; i < segments; i++) {
+      const r = (0.24 - i * 0.018) * scale
+      const segH = 0.85 * scale
+      const seg = cyl(r * 0.92, r, segH, 0x6e5239, 7)
+      const curX = prevX + Math.sin((i / segments) * 0.7) * 0.16 * scale
+      const curY = prevY + segH / 2
+      seg.position.set(curX, curY, 0)
+      seg.rotation.z = -0.06 * (i + 1)
+      seg.castShadow = true
+      seg.raycast = () => {}
+      pt.add(seg)
+      prevY += segH * 0.94
+      prevX = curX
+    }
+
+    // Coconuts (buah kelapa) di bawah mahkota daun
+    for (let c = 0; c < 4; c++) {
+      const nutAngle = (c * Math.PI) / 2
+      const nut = new THREE.Mesh(
+        new THREE.SphereGeometry(0.18 * scale, 6, 6),
+        stdMat(0x4a7c29, { rough: 0.8 }),
+      )
+      nut.position.set(
+        prevX + Math.cos(nutAngle) * 0.25 * scale,
+        prevY - 0.1 * scale,
+        Math.sin(nutAngle) * 0.25 * scale,
+      )
+      nut.castShadow = true
+      nut.raycast = () => {}
+      pt.add(nut)
+    }
+
+    // Pelepah daun kelapa menjuntai 3D hijau segar
+    const frondCount = 9
+    for (let f = 0; f < frondCount; f++) {
+      const angle = (f / frondCount) * Math.PI * 2
+      const frond = new THREE.Group()
+      frond.position.set(prevX, prevY, 0)
+      frond.rotation.y = angle
+      frond.rotation.z = 0.45 + (f % 2) * 0.15
+
+      // Bilah daun melengkung
+      const leaf = box(2.4 * scale, 0.05 * scale, 0.5 * scale, 0x16a34a, { rough: 0.75 })
+      leaf.position.set(1.2 * scale, -0.2 * scale, 0)
+      leaf.rotation.z = -0.22
+      leaf.castShadow = true
+      leaf.raycast = () => {}
+      frond.add(leaf)
+
+      pt.add(frond)
+    }
+
+    pt.raycast = () => {}
+    beachGroup.add(pt)
+    foliage.push({ group: pt, phase: Math.abs(x * 0.2 + z * 0.15) })
+  }
+
+  // Menanam pohon kelapa pantai di sepanjang pesisir
+  for (const [px, pz, ps, py] of [
+    [-38, -26, 1.25, 0.3],
+    [-26, -34, 1.35, 1.2],
+    [-15, -27, 1.15, -0.5],
+    [-4, -36, 1.4, 0.8],
+    [5, -29, 1.2, 2.1],
+    [24, -33, 1.35, -1.1],
+    [36, -26, 1.25, 0.6],
+    [48, -35, 1.4, 1.7],
+    [-48, -20, 1.2, 0.4],
+    [48, -19, 1.2, -0.8],
+  ] as const) {
+    beachPalm(px, pz, ps, py)
+  }
+
+  // 5. Kursi Santai Pantai & Payung Resor Bergaris (Beach Loungers & Parasols)
+  const beachLoungerPair = (x: number, z: number, angle = 0) => {
+    const pair = new THREE.Group()
+    pair.position.set(x, 0, z)
+    pair.rotation.y = angle
+
+    for (const lx of [-0.9, 0.9]) {
+      // Rangka kursi lounger kayu
+      const frame = box(0.7, 0.12, 1.9, 0xb45309, { rough: 0.8 })
+      frame.position.set(lx, 0.14, 0)
+      frame.castShadow = true
+      frame.raycast = () => {}
+      pair.add(frame)
+
+      // Sandaran lounger miring
+      const backrest = box(0.66, 0.08, 0.8, 0xb45309, { rough: 0.8 })
+      backrest.position.set(lx, 0.36, -0.5)
+      backrest.rotation.x = -0.55
+      backrest.castShadow = true
+      backrest.raycast = () => {}
+      pair.add(backrest)
+
+      // Matras busa empuk putih/turqouise
+      const cushion = box(0.64, 0.08, 1.1, 0xf0fdfa, { rough: 0.9 })
+      cushion.position.set(lx, 0.22, 0.35)
+      cushion.raycast = () => {}
+      pair.add(cushion)
+
+      const headCushion = box(0.62, 0.07, 0.72, 0x38bdf8, { rough: 0.9 })
+      headCushion.position.set(lx, 0.4, -0.48)
+      headCushion.rotation.x = -0.55
+      headCushion.raycast = () => {}
+      pair.add(headCushion)
+    }
+
+    // Meja kecil di tengah
+    const sideTable = box(0.5, 0.25, 0.5, 0x78350f, { rough: 0.85 })
+    sideTable.position.set(0, 0.15, 0)
+    sideTable.raycast = () => {}
+    pair.add(sideTable)
+
+    // Es kelapa muda / tropical drink di atas meja
+    const drinkCup = cyl(0.06, 0.05, 0.16, 0xfef08a, 8)
+    drinkCup.position.set(0.08, 0.34, 0.05)
+    drinkCup.raycast = () => {}
+    pair.add(drinkCup)
+
+    // Payung pantai besar resort bergaris (Sun Parasol)
+    const pole = cyl(0.04, 0.04, 2.7, 0xf1f5f9, 8)
+    pole.position.set(0, 1.35, -0.8)
+    pole.castShadow = true
+    pole.raycast = () => {}
+    pair.add(pole)
+
+    // Kanopi payung pantai kerucut (Striped Resort Parasol)
+    const canopy = new THREE.Mesh(
+      new THREE.ConeGeometry(1.6, 0.7, 10, 1, true),
+      stdMat(0x0284c7, { rough: 0.6 }),
+    )
+    canopy.position.set(0, 2.65, -0.8)
+    canopy.castShadow = true
+    canopy.raycast = () => {}
+    pair.add(canopy)
+
+    pair.raycast = () => {}
+    beachGroup.add(pair)
+  }
+
+  // Letakkan pasangan kursi santai pantai di pasir
+  beachLoungerPair(-20, -29, 0.1)
+  beachLoungerPair(-8, -32, -0.15)
+  beachLoungerPair(4, -31, 0.08)
+  beachLoungerPair(28, -28, -0.2)
+
+  // 6. Bebatuan Karang Pantai Estetik (Coastal Sea Rocks)
+  for (const [rx, rz, scale, color] of [
+    [-42, -43, 1.6, 0x475569],
+    [-30, -45, 2.1, 0x334155],
+    [-12, -44, 1.4, 0x475569],
+    [8, -46, 2.4, 0x1e293b],
+    [22, -44, 1.8, 0x334155],
+    [38, -45, 2.0, 0x475569],
+    [52, -43, 1.5, 0x334155],
+  ] as const) {
+    const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(scale, 1), stdMat(color, { rough: 0.95 }))
+    rock.position.set(rx, -0.1 + scale * 0.3, rz)
+    rock.rotation.set(rx * 0.3, rz * 0.4, (rx + rz) * 0.2)
+    rock.castShadow = true
+    rock.receiveShadow = true
+    rock.raycast = () => {}
+    beachGroup.add(rock)
+  }
+
+  // 7. Gazebo / Cabana Pantai Resor Mewah (Beachfront Luxury Cabana)
+  {
+    const cabana = new THREE.Group()
+    cabana.position.set(-32, 0, -28)
+    cabana.name = 'beach-cabana'
+
+    // Dek kayu panggung cabana
+    const cDeck = box(4.2, 0.2, 4.2, 0x78350f, { rough: 0.85 })
+    cDeck.position.y = 0.15
+    cDeck.castShadow = true
+    cDeck.raycast = () => {}
+    cabana.add(cDeck)
+
+    // 4 Tiang kayu tiang pancang
+    for (const [cx, cz] of [
+      [-1.85, -1.85],
+      [1.85, -1.85],
+      [-1.85, 1.85],
+      [1.85, 1.85],
+    ] as const) {
+      const post = cyl(0.09, 0.1, 2.6, 0x451a03, 8)
+      post.position.set(cx, 1.4, cz)
+      post.castShadow = true
+      post.raycast = () => {}
+      cabana.add(post)
+    }
+
+    // Atap kanopi kain putih teduh resort
+    const roof = box(4.5, 0.1, 4.5, 0xf8fafc, { rough: 0.7 })
+    roof.position.y = 2.7
+    roof.castShadow = true
+    roof.raycast = () => {}
+    cabana.add(roof)
+
+    // Daybed kasur besar di dalam cabana
+    const bed = box(3.2, 0.3, 2.6, 0xf1f5f9, { rough: 0.9 })
+    bed.position.set(0, 0.38, 0)
+    bed.raycast = () => {}
+    cabana.add(bed)
+
+    // Bantal-bantal warna toska resort
+    for (const bx of [-1.1, -0.4, 0.4, 1.1]) {
+      const pillow = box(0.55, 0.16, 0.4, 0x06b6d4, { rough: 0.8 })
+      pillow.position.set(bx, 0.58, -0.9)
+      pillow.rotation.x = -0.3
+      pillow.raycast = () => {}
+      cabana.add(pillow)
+    }
+
+    cabana.raycast = () => {}
+    beachGroup.add(cabana)
+  }
+
   /* --------------------------------------------------------- living street */
   const ROW_SPEED = [1.55, 1.05] as const
   const PED_GAP = 3.2
@@ -3683,6 +4239,11 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
       }
       v.obj.position.z = v.z
     }
+
+    // Coastal Ocean Wave & Shoreline Foam Breathing Animation
+    northOcean.position.y = -0.035 + Math.sin(t * 1.5) * 0.015
+    shoreFoam.position.z = -44.5 + Math.sin(t * 1.5) * 0.85
+    foamMat.opacity = 0.5 + Math.sin(t * 1.5) * 0.25
   }
 
   streetGroup.visible = true
