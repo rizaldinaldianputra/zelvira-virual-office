@@ -217,10 +217,10 @@ function zelviraOfficeRooftopTexture(): THREE.Texture {
   return canvasTex(1024, (c, s) => {
     // 1024x512 widescreen billboard texture
     const bg = c.createLinearGradient(0, 0, s, 0)
-    bg.addColorStop(0, '#030712')
-    bg.addColorStop(0.2, '#0f172a')
-    bg.addColorStop(0.8, '#0f172a')
-    bg.addColorStop(1, '#030712')
+    bg.addColorStop(0, '#020617')
+    bg.addColorStop(0.25, '#0f172a')
+    bg.addColorStop(0.75, '#0f172a')
+    bg.addColorStop(1, '#020617')
     c.fillStyle = bg
     c.fillRect(0, 0, s, s)
 
@@ -232,36 +232,59 @@ function zelviraOfficeRooftopTexture(): THREE.Texture {
     c.lineWidth = 5
     c.strokeRect(32, 32, s - 64, s - 64)
 
-    // Stylized glowing emblem (Crown diamond)
-    c.fillStyle = '#f59e0b'
+    // Subtle tech matrix grid pattern
+    c.strokeStyle = 'rgba(56, 189, 248, 0.08)'
+    c.lineWidth = 1
+    for (let x = 40; x < s - 40; x += 32) {
+      c.beginPath()
+      c.moveTo(x, 40)
+      c.lineTo(x, s - 40)
+      c.stroke()
+    }
+    for (let y = 40; y < s - 40; y += 32) {
+      c.beginPath()
+      c.moveTo(40, y)
+      c.lineTo(s - 40, y)
+      c.stroke()
+    }
+
+    // Glowing circular pedestal on the left where the real logo.png image sits
+    const logoCenter = s * 0.22
+    const glow = c.createRadialGradient(logoCenter, s / 2, 40, logoCenter, s / 2, 220)
+    glow.addColorStop(0, 'rgba(56, 189, 248, 0.28)')
+    glow.addColorStop(0.6, 'rgba(245, 158, 11, 0.14)')
+    glow.addColorStop(1, 'rgba(15, 23, 42, 0)')
+    c.fillStyle = glow
     c.beginPath()
-    c.arc(s / 2, s / 2 - 140, 52, 0, Math.PI * 2)
+    c.arc(logoCenter, s / 2, 220, 0, Math.PI * 2)
     c.fill()
-    c.fillStyle = '#0f172a'
-    c.beginPath()
-    c.arc(s / 2, s / 2 - 140, 38, 0, Math.PI * 2)
-    c.fill()
-    c.fillStyle = '#38bdf8'
-    c.beginPath()
-    c.arc(s / 2, s / 2 - 140, 22, 0, Math.PI * 2)
-    c.fill()
+
+    // Right side typography: "ZELVIRA OFFICE" & "★ VIRTUAL HEADQUARTERS ★"
+    const textCenter = s * 0.64
 
     // Main header: "ZELVIRA"
-    c.font = '900 125px "Segoe UI", system-ui, -apple-system, sans-serif'
+    c.font = '900 120px "Segoe UI", system-ui, -apple-system, sans-serif'
     c.textAlign = 'center'
     c.textBaseline = 'middle'
-    c.fillStyle = '#f8fafc'
-    c.fillText('ZELVIRA', s / 2, s / 2 - 15)
+    c.fillStyle = '#ffffff'
+    c.shadowColor = '#38bdf8'
+    c.shadowBlur = 20
+    c.fillText('ZELVIRA', textCenter, s / 2 - 50)
 
     // Subtitle: "OFFICE"
-    c.font = '800 70px "Segoe UI", system-ui, -apple-system, sans-serif'
+    c.font = '800 78px "Segoe UI", system-ui, -apple-system, sans-serif'
     c.fillStyle = '#38bdf8'
-    c.fillText('OFFICE', s / 2, s / 2 + 100)
+    c.shadowColor = '#0284c7'
+    c.shadowBlur = 15
+    c.fillText('OFFICE', textCenter, s / 2 + 55)
 
-    // Tagline: "VIRTUAL HEADQUARTERS"
-    c.font = '700 28px monospace'
+    // Tagline: "★ VIRTUAL HEADQUARTERS ★"
+    c.font = '700 26px monospace'
     c.fillStyle = '#f59e0b'
-    c.fillText('★ VIRTUAL HEADQUARTERS ★', s / 2, s / 2 + 185)
+    c.shadowColor = '#d97706'
+    c.shadowBlur = 8
+    c.fillText('★ VIRTUAL HEADQUARTERS ★', textCenter, s / 2 + 135)
+    c.shadowBlur = 0
   })
 }
 
@@ -1365,22 +1388,24 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     header.raycast = () => {}
     group.add(header)
 
-    // 3. Mullion vertikal aluminium arsitektural tiap ~3.4 m
-    const mullionCount = Math.max(1, Math.round(len / 3.4))
-    const step = len / mullionCount
-    for (let i = 0; i <= mullionCount; i++) {
-      const mx = horizontal ? Math.min(x1, x2) + i * step : cx
-      const mz = horizontal ? cz : Math.min(z1, z2) + i * step
-      const mullion = box(
-        horizontal ? 0.09 : WALL_T + 0.05,
-        glassH,
-        horizontal ? WALL_T + 0.05 : 0.09,
-        0x0f172a,
-        { metal: 0.8, rough: 0.25 },
-      )
-      mullion.position.set(mx, yFloor + CUT_H + glassH / 2, mz)
-      mullion.raycast = () => {}
-      group.add(mullion)
+    // 3. Mullion vertikal aluminium arsitektural tiap ~3.4 m (hanya lantai dasar, lantai 1 & 2 open panoramic glass)
+    if (yFloor === 0) {
+      const mullionCount = Math.max(1, Math.round(len / 3.4))
+      const step = len / mullionCount
+      for (let i = 0; i <= mullionCount; i++) {
+        const mx = horizontal ? Math.min(x1, x2) + i * step : cx
+        const mz = horizontal ? cz : Math.min(z1, z2) + i * step
+        const mullion = box(
+          horizontal ? 0.09 : WALL_T + 0.05,
+          glassH,
+          horizontal ? WALL_T + 0.05 : 0.09,
+          0x0f172a,
+          { metal: 0.8, rough: 0.25 },
+        )
+        mullion.position.set(mx, yFloor + CUT_H + glassH / 2, mz)
+        mullion.raycast = () => {}
+        group.add(mullion)
+      }
     }
   }
 
@@ -1411,19 +1436,12 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
   shell(DOOR.x + 2.2, HALF_D, 14, HALF_D)
   addFullHeightFacade(DOOR.x + 2.2, HALF_D, 14, HALF_D, 0)
 
-  // Pilar Sudut Struktural Gedung 3 Lantai (Tinggi Penuh 10.2 meter)
+  // 4 Pilar Sudut Struktural Bangunan (Lantai 1 dan lantai 2 open space bebas tiang)
   for (const [colX, colZ] of [
     [-HALF_W, -HALF_D],
     [HALF_W, -HALF_D],
     [-HALF_W, HALF_D],
     [HALF_W, HALF_D],
-    [-14, HALF_D],
-    [14, HALF_D],
-    [-HALF_W, -9],
-    [HALF_W, -9],
-    [-HALF_W, 6.9],
-    [-HALF_W, -6.9],
-    [HALF_W, 11],
   ] as const) {
     const col3D = box(0.55, LEVEL_H * 3, 0.55, 0x1e293b, { metal: 0.7, rough: 0.3 })
     col3D.position.set(colX, (LEVEL_H * 3) / 2, colZ)
@@ -1619,18 +1637,7 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
       topBeam.raycast = () => {}
       group.add(topBeam)
 
-      // Kusen & mullion vertikal aluminium arsitektural tiap ~3.5 m
-      const mullionCount = Math.max(1, Math.round(w / 3.5))
-      const step = w / mullionCount
-      for (let i = 0; i <= mullionCount; i++) {
-        const mx = x1 + i * step
-        const mullion = box(0.08, facadeH, 0.1, 0x0f172a, { metal: 0.8, rough: 0.25 })
-        mullion.position.set(mx, LEVEL_H + 1.0 + facadeH / 2, -9)
-        mullion.raycast = () => {}
-        group.add(mullion)
-      }
-
-      // Transom horizontal tengah
+      // Transom horizontal tengah (kaca open panoramic tanpa tiang vertikal)
       const midTransom = box(w, 0.06, 0.08, 0x1e293b, { metal: 0.7, rough: 0.3 })
       midTransom.position.set(mid, LEVEL_H + 1.0 + facadeH * 0.55, -9)
       midTransom.raycast = () => {}
@@ -1645,14 +1652,6 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     portalHeader.position.set(portalMidX, LEVEL2_Y - 0.12, -9)
     portalHeader.raycast = () => {}
     group.add(portalHeader)
-
-    // Kusen tiang samping pintu portal
-    for (const px of [gap.x1, gap.x2]) {
-      const pCol = box(0.12, LEVEL_H, 0.14, 0x0f172a, { metal: 0.8, rough: 0.25 })
-      pCol.position.set(px, LEVEL_H + LEVEL_H / 2, -9)
-      pCol.raycast = () => {}
-      group.add(pCol)
-    }
 
     // Panel kaca transparan geser dekoratif di samping pintu
     for (const [dx, pw] of [
@@ -2119,6 +2118,32 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
       screenBack.position.set(0, 0, -screenD / 2 - 0.02)
       screenBack.raycast = () => {}
       jumbotron.add(screenBack)
+
+      // Tampilan Logo Asli Zelvira dari /logo.png pada Jumbotron (Depan & Belakang)
+      const jumbotronLogoMat = new THREE.MeshStandardMaterial({
+        map: logoTexture(),
+        transparent: true,
+        roughness: 0.1,
+        metalness: 0.05,
+        side: THREE.DoubleSide,
+        emissive: new THREE.Color(0xffffff),
+        emissiveMap: logoTexture(),
+        emissiveIntensity: 1.15,
+      })
+
+      const logoSize = 3.6
+      // Logo sisi depan menghadap selatan (courtyard)
+      const frontLogo = new THREE.Mesh(new THREE.PlaneGeometry(logoSize, logoSize), jumbotronLogoMat)
+      frontLogo.position.set(-4.5, 0, screenD / 2 + 0.04)
+      frontLogo.raycast = () => {}
+      jumbotron.add(frontLogo)
+
+      // Logo sisi belakang menghadap utara (pantai)
+      const backLogo = new THREE.Mesh(new THREE.PlaneGeometry(logoSize, logoSize), jumbotronLogoMat)
+      backLogo.rotation.y = Math.PI
+      backLogo.position.set(-4.5, 0, -screenD / 2 - 0.04)
+      backLogo.raycast = () => {}
+      jumbotron.add(backLogo)
 
       // Lampu suar keselamatan penerbangan merah di kedua sudut atas
       for (const bx of [-screenW / 2 - 0.2, screenW / 2 + 0.2]) {
@@ -3840,9 +3865,20 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
   const pavementBump = track(bumpFrom(pavementTex, 0.5))
 
   const GROUND_EXTENT = 220
+  const earthTex = track(earthTexture('#6b7a56', '#4d5a3e', '#8a9a6c'))
+  earthTex.repeat.set(GROUND_EXTENT / 12, GROUND_EXTENT / 12)
+  const earthBump = track(bumpFrom(earthTex, 0.55))
+  earthBump.repeat.copy(earthTex.repeat)
+
   const earth = new THREE.Mesh(
     new THREE.PlaneGeometry(GROUND_EXTENT, GROUND_EXTENT),
-    new THREE.MeshStandardMaterial({ color: 0xf5dfb8, map: sandTex, roughness: 0.98 }),
+    new THREE.MeshStandardMaterial({
+      color: 0x6f7a5e,
+      map: earthTex,
+      bumpMap: earthBump,
+      bumpScale: 0.5,
+      roughness: 1,
+    }),
   )
   earth.rotation.x = -Math.PI / 2
   earth.position.y = -0.12
@@ -3850,13 +3886,13 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
   earth.raycast = () => {}
   streetGroup.add(earth)
 
-  // Pavement hanya di bawah footprint gedung & plaza depan (kiri & kanan full pasir pantai bersih)
+  // Pavement plaza depan dan jalan raya tetap abu-abu original
   const pavement = new THREE.Mesh(
-    new THREE.PlaneGeometry(58, 48),
+    new THREE.PlaneGeometry(150, 130),
     new THREE.MeshStandardMaterial({ map: pavementTex, bumpMap: pavementBump, bumpScale: 0.25, roughness: 0.95 }),
   )
   pavement.rotation.x = -Math.PI / 2
-  pavement.position.set(0, -0.06, 12)
+  pavement.position.set(0, -0.06, 0)
   pavement.receiveShadow = true
   pavement.raycast = () => {}
   streetGroup.add(pavement)
@@ -3983,27 +4019,27 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
   beachGroup.name = 'tropical-beach'
   streetGroup.add(beachGroup)
 
-  // 1. Hamparan Pasir Pantai Penuh (Kiri, Kanan, dan Belakang Gedung 100% Pasir Bersih)
-  // Sayap Pasir Pantai Barat (Kiri Gedung) — Penuh tanpa batas
-  const westBeach = new THREE.Mesh(new THREE.PlaneGeometry(90, 220), sandMat)
+  // 1. Hamparan Pasir Pantai Khusus Daerah Samping & Belakang Gedung Kantor (Jalan Raya di depan tetap abu-abu)
+  // Sayap Pasir Pantai Barat (Kiri Gedung, x: -70 s.d. -28, z: -46 s.d. 21)
+  const westBeach = new THREE.Mesh(new THREE.PlaneGeometry(42, 67), sandMat)
   westBeach.rotation.x = -Math.PI / 2
-  westBeach.position.set(-73, -0.045, 0)
+  westBeach.position.set(-49, -0.045, -12.5)
   westBeach.receiveShadow = true
   westBeach.raycast = () => {}
   beachGroup.add(westBeach)
 
-  // Sayap Pasir Pantai Timur (Kanan Gedung) — Penuh tanpa batas
-  const eastBeach = new THREE.Mesh(new THREE.PlaneGeometry(90, 220), sandMat)
+  // Sayap Pasir Pantai Timur (Kanan Gedung, x: 28 s.d. 70, z: -46 s.d. 21)
+  const eastBeach = new THREE.Mesh(new THREE.PlaneGeometry(42, 67), sandMat)
   eastBeach.rotation.x = -Math.PI / 2
-  eastBeach.position.set(73, -0.045, 0)
+  eastBeach.position.set(49, -0.045, -12.5)
   eastBeach.receiveShadow = true
   eastBeach.raycast = () => {}
   beachGroup.add(eastBeach)
 
-  // Hamparan Pasir Pantai Luas Belakang Gedung (Utara, z = -21 s.d. -46)
-  const northBeach = new THREE.Mesh(new THREE.PlaneGeometry(220, 50), sandMat)
+  // Hamparan Pasir Pantai Luas Belakang Gedung (Utara, x: -70 s.d. 70, z: -46 s.d. -21)
+  const northBeach = new THREE.Mesh(new THREE.PlaneGeometry(140, 25), sandMat)
   northBeach.rotation.x = -Math.PI / 2
-  northBeach.position.set(0, -0.045, -45)
+  northBeach.position.set(0, -0.045, -33.5)
   northBeach.receiveShadow = true
   northBeach.raycast = () => {}
   beachGroup.add(northBeach)
