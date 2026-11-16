@@ -150,7 +150,43 @@ export default function SystemPanel({ open, onClose }: { open: boolean; onClose:
   const [customBaseUrl, setCustomBaseUrl] = useState('')
   const [customSetAsDefault, setCustomSetAsDefault] = useState(true)
   const [customApplyToAll, setCustomApplyToAll] = useState(true)
-  const [modelTab, setModelTab] = useState<'catalog' | 'custom'>('catalog')
+  const [modelTab, setModelTab] = useState<'catalog' | 'custom' | 'project'>('catalog')
+
+  // Project & Server Integration state
+  const [projectConfig, setProjectConfig] = useState({
+    ecommercePath: '/var/www/ecommerce',
+    framework: 'Next.js / Node.js / PostgreSQL',
+    serverHost: 'VM-32-155-ubuntu (127.0.0.1)',
+    projectDescription: 'Zelvira E-Commerce Ecosystem (Storefront, Keranjang Belanja, Katalog Produk, & Blog)',
+    dbEnabled: true,
+    dbHost: '127.0.0.1',
+    dbPort: 5432,
+    dbName: 'ecommerce',
+    dbUser: 'postgres',
+    dbPassword: '',
+    dbReadOnly: true,
+    dbKeyTables: 'products, categories, articles, content_posts, users, orders',
+    adminPortalUrl: 'https://admin.zelvira.my.id',
+    adminAuthType: 'api_token' as 'api_token' | 'credentials',
+    adminToken: '',
+    adminUsername: 'content_creator',
+    adminPassword: '',
+    adminContentEndpoint: '/api/articles',
+    adminForceDraft: true,
+    allowBashExecution: true,
+    requireConfirmationForDestructive: true,
+  })
+  const [projectBusy, setProjectBusy] = useState(false)
+  const [projectMsg, setProjectMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
+  const [projectTest, setProjectTest] = useState<{
+    ecommerceFolderExists: boolean
+    adminPortalReachable: boolean
+    adminPortalStatus: string
+    dbConfigValid: boolean
+    dbSummary: string
+    message: string
+  } | null>(null)
+  const [projectTesting, setProjectTesting] = useState(false)
 
   const loadModels = useCallback(async () => {
     setModelLoading(true)
@@ -392,12 +428,96 @@ export default function SystemPanel({ open, onClose }: { open: boolean; onClose:
     }
   }, [])
 
+  const loadProjectConfig = useCallback(async () => {
+    try {
+      const res = await fetchJson<{ success: boolean; config: any }>('/api/hermes/project-context')
+      if (res.ok && res.data && res.data.config) {
+        setProjectConfig((prev) => ({
+          ...prev,
+          ...res.data!.config,
+        }))
+      }
+    } catch (e) {
+      console.error('Failed to load project context:', e)
+    }
+  }, [])
+
+  const handleSaveProjectConfig = async () => {
+    setProjectBusy(true)
+    setProjectMsg(null)
+    try {
+      const res = await fetchJson<{ success: boolean; config: any }>('/api/hermes/project-context', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'save', config: projectConfig }),
+      })
+      if (!res.ok) throw new Error(res.error || 'Gagal menyimpan konfigurasi')
+      setProjectMsg({ type: 'ok', text: '✅ Konfigurasi integrasi proyek & server berhasil disimpan ke sistem!' })
+      await loadProjectConfig()
+    } catch (e) {
+      setProjectMsg({ type: 'err', text: (e as Error).message })
+    } finally {
+      setProjectBusy(false)
+    }
+  }
+
+  const handleSyncProjectToAgents = async () => {
+    setProjectBusy(true)
+    setProjectMsg(null)
+    try {
+      await fetchJson('/api/hermes/project-context', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'save', config: projectConfig }),
+      })
+      const res = await fetchJson<{ success: boolean; profilesUpdated?: string[]; message?: string }>(
+        '/api/hermes/project-context',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'sync' }),
+        },
+      )
+      if (!res.ok) throw new Error(res.error || 'Gagal menyinkronkan profil agent')
+      const count = res.data?.profilesUpdated?.length || 0
+      setProjectMsg({
+        type: 'ok',
+        text: `🚀 SUKSES! ${count} profil agent (termasuk contentcreator, seo, & backend) telah diperbarui dengan pengetahuan proyek /var/www/ecommerce, PostgreSQL, dan portal admin.zelvira.my.id!`,
+      })
+      await loadModels()
+    } catch (e) {
+      setProjectMsg({ type: 'err', text: (e as Error).message })
+    } finally {
+      setProjectBusy(false)
+    }
+  }
+
+  const handleTestProjectIntegration = async () => {
+    setProjectTesting(true)
+    setProjectMsg(null)
+    try {
+      const res = await fetchJson<{ success: boolean; result: any }>('/api/hermes/project-context', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'test' }),
+      })
+      if (!res.ok) throw new Error(res.error || 'Gagal menguji koneksi')
+      setProjectTest(res.data?.result || null)
+      setProjectMsg({ type: 'ok', text: 'Uji koneksi server, database, dan portal admin selesai dijalankan.' })
+    } catch (e) {
+      setProjectMsg({ type: 'err', text: (e as Error).message })
+    } finally {
+      setProjectTesting(false)
+    }
+  }
+
   useEffect(() => {
     if (!open) return
     load()
     loadApprovals()
     loadRestart()
     loadModels()
+    loadProjectConfig()
     const t = setInterval(() => {
       load()
       loadApprovals()
@@ -405,7 +525,7 @@ export default function SystemPanel({ open, onClose }: { open: boolean; onClose:
       loadModels()
     }, 30_000)
     return () => clearInterval(t)
-  }, [open, load, loadApprovals, loadRestart, loadModels])
+  }, [open, load, loadApprovals, loadRestart, loadModels, loadProjectConfig])
 
   if (!open) return null
 
@@ -591,27 +711,37 @@ export default function SystemPanel({ open, onClose }: { open: boolean; onClose:
           </div>
         </div>
 
-        {/* Tab Pilih Model / Masukkan API Key */}
-        <div className="flex border-b border-slate-700 mb-3 gap-2">
+        {/* Tab Pilih Model / Masukkan API Key / Integrasi Proyek */}
+        <div className="flex border-b border-slate-700 mb-3 gap-2 overflow-x-auto">
           <button
             onClick={() => setModelTab('catalog')}
-            className={`px-3 py-1.5 text-xs font-medium border-b-2 transition-colors ${
+            className={`px-3 py-1.5 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${
               modelTab === 'catalog'
                 ? 'border-indigo-400 text-indigo-300 bg-indigo-950/20'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
-            📋 Pilih dari Model Terdaftar
+            📋 Pilih Model Terdaftar
           </button>
           <button
             onClick={() => setModelTab('custom')}
-            className={`px-3 py-1.5 text-xs font-medium border-b-2 transition-colors ${
+            className={`px-3 py-1.5 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${
               modelTab === 'custom'
                 ? 'border-indigo-400 text-indigo-300 bg-indigo-950/20'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
-            🔑 Masukkan API Key & Model Kustom
+            🔑 Input API Key & Custom
+          </button>
+          <button
+            onClick={() => setModelTab('project')}
+            className={`px-3 py-1.5 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${
+              modelTab === 'project'
+                ? 'border-emerald-400 text-emerald-300 bg-emerald-950/20 font-semibold'
+                : 'border-transparent text-emerald-400/80 hover:text-emerald-300'
+            }`}
+          >
+            🌐 Integrasi Proyek Zelvira (/var/www/ecommerce, DB & Admin)
           </button>
         </div>
 
@@ -747,6 +877,380 @@ export default function SystemPanel({ open, onClose }: { open: boolean; onClose:
                 className="rounded bg-indigo-600 px-3 py-1.5 font-medium text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors shadow-sm"
               >
                 {modelBusy ? 'Menyimpan…' : '💾 Simpan Provider & Pasang Model'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 3: INTEGRASI PROYEK ZELVIRA */}
+        {modelTab === 'project' && (
+          <div className="space-y-4 bg-slate-800/40 p-3.5 rounded border border-emerald-900/50">
+            {/* Header info */}
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-700/60 pb-2">
+              <div>
+                <h4 className="font-semibold text-emerald-400 text-sm flex items-center gap-1.5">
+                  <span>🏢 Integrasi Proyek & Server Zelvira</span>
+                </h4>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Hubungkan agen AI dengan codebase riil di server, database PostgreSQL, dan portal admin.zelvira.my.id.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleSyncProjectToAgents}
+                disabled={projectBusy}
+                className="px-3 py-1 text-xs font-semibold rounded bg-emerald-600 hover:bg-emerald-500 text-white shadow transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                title="Suntikkan konteks proyek ke semua file SOUL.md profil agent"
+              >
+                <span>⚡ Sinkronkan ke Semua Agent</span>
+              </button>
+            </div>
+
+            {/* Notification message */}
+            {projectMsg && (
+              <div
+                className={`p-2.5 rounded text-xs flex items-center justify-between ${
+                  projectMsg.type === 'ok'
+                    ? 'bg-emerald-950/70 text-emerald-300 border border-emerald-800/60'
+                    : 'bg-red-950/70 text-red-300 border border-red-800/60'
+                }`}
+              >
+                <span>{projectMsg.text}</span>
+                <button
+                  type="button"
+                  onClick={() => setProjectMsg(null)}
+                  className="text-slate-400 hover:text-white ml-2 text-sm font-bold"
+                >
+                  ×
+                </button>
+              </div>
+            )}
+
+            {/* Test result display */}
+            {projectTest && (
+              <div className="p-2.5 rounded text-xs bg-slate-900/90 border border-slate-700/80 space-y-1.5">
+                <div className="font-semibold text-slate-300 flex items-center justify-between">
+                  <span>Hasil Uji Koneksi:</span>
+                  <span className="text-[10px] text-slate-400">{projectTest.message}</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-1">
+                  <div className="p-1.5 rounded bg-slate-800/60 border border-slate-700/50">
+                    <span className="text-[10px] text-slate-400 block">Codebase Server</span>
+                    <span className={`text-[11px] font-semibold ${projectTest.ecommerceFolderExists ? 'text-emerald-400' : 'text-amber-400'}`}>
+                      {projectTest.ecommerceFolderExists ? '✓ Terdeteksi di Host' : '⚠ Belum Terdeteksi Lokal (Server Mode)'}
+                    </span>
+                  </div>
+                  <div className="p-1.5 rounded bg-slate-800/60 border border-slate-700/50">
+                    <span className="text-[10px] text-slate-400 block">Portal Admin Zelvira</span>
+                    <span className={`text-[11px] font-semibold ${projectTest.adminPortalReachable ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {projectTest.adminPortalStatus}
+                    </span>
+                  </div>
+                  <div className="p-1.5 rounded bg-slate-800/60 border border-slate-700/50">
+                    <span className="text-[10px] text-slate-400 block">Database PostgreSQL</span>
+                    <span className={`text-[11px] font-semibold ${projectTest.dbConfigValid ? 'text-emerald-400' : 'text-amber-400'}`}>
+                      {projectTest.dbSummary}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {/* Card 1: Codebase Server */}
+              <div className="p-3 rounded bg-slate-900/60 border border-slate-700/70 space-y-2">
+                <h5 className="font-semibold text-xs text-sky-400 flex items-center gap-1.5">
+                  📁 Codebase & Folder Server
+                </h5>
+                <div>
+                  <label className="block text-[11px] text-slate-300 mb-1">Path Proyek di Server:</label>
+                  <input
+                    type="text"
+                    value={projectConfig.ecommercePath}
+                    onChange={(e) => setProjectConfig({ ...projectConfig, ecommercePath: e.target.value })}
+                    placeholder="/var/www/ecommerce"
+                    className="w-full rounded bg-slate-800 border border-slate-600 px-2 py-1 text-xs text-white focus:outline-none focus:border-sky-400 font-mono"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] text-slate-400 mb-0.5">Framework / Stack:</label>
+                    <input
+                      type="text"
+                      value={projectConfig.framework}
+                      onChange={(e) => setProjectConfig({ ...projectConfig, framework: e.target.value })}
+                      placeholder="Next.js / Node.js"
+                      className="w-full rounded bg-slate-800 border border-slate-600 px-2 py-1 text-xs text-white focus:outline-none focus:border-sky-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-400 mb-0.5">Host Server:</label>
+                    <input
+                      type="text"
+                      value={projectConfig.serverHost}
+                      onChange={(e) => setProjectConfig({ ...projectConfig, serverHost: e.target.value })}
+                      placeholder="VM-32-155-ubuntu"
+                      className="w-full rounded bg-slate-800 border border-slate-600 px-2 py-1 text-xs text-white focus:outline-none focus:border-sky-400"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] text-slate-400 mb-0.5">Keterangan Proyek:</label>
+                  <input
+                    type="text"
+                    value={projectConfig.projectDescription}
+                    onChange={(e) => setProjectConfig({ ...projectConfig, projectDescription: e.target.value })}
+                    placeholder="Zelvira E-Commerce Ecosystem"
+                    className="w-full rounded bg-slate-800 border border-slate-600 px-2 py-1 text-xs text-white focus:outline-none focus:border-sky-400"
+                  />
+                </div>
+              </div>
+
+              {/* Card 2: Database PostgreSQL */}
+              <div className="p-3 rounded bg-slate-900/60 border border-slate-700/70 space-y-2">
+                <div className="flex items-center justify-between">
+                  <h5 className="font-semibold text-xs text-indigo-400 flex items-center gap-1.5">
+                    🗄️ Database PostgreSQL Server
+                  </h5>
+                  <label className="text-[11px] text-slate-300 flex items-center gap-1 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={projectConfig.dbEnabled}
+                      onChange={(e) => setProjectConfig({ ...projectConfig, dbEnabled: e.target.checked })}
+                      className="rounded bg-slate-800 border-slate-600 text-indigo-500"
+                    />
+                    Aktif
+                  </label>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="col-span-2">
+                    <label className="block text-[10px] text-slate-400 mb-0.5">Host & Port:</label>
+                    <div className="flex gap-1">
+                      <input
+                        type="text"
+                        value={projectConfig.dbHost}
+                        onChange={(e) => setProjectConfig({ ...projectConfig, dbHost: e.target.value })}
+                        placeholder="127.0.0.1"
+                        className="w-3/4 rounded bg-slate-800 border border-slate-600 px-2 py-1 text-xs text-white focus:outline-none focus:border-indigo-400 font-mono"
+                      />
+                      <input
+                        type="number"
+                        value={projectConfig.dbPort}
+                        onChange={(e) => setProjectConfig({ ...projectConfig, dbPort: Number(e.target.value) || 5432 })}
+                        placeholder="5432"
+                        className="w-1/4 rounded bg-slate-800 border border-slate-600 px-1 py-1 text-xs text-white focus:outline-none focus:border-indigo-400 font-mono"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-400 mb-0.5">Database:</label>
+                    <input
+                      type="text"
+                      value={projectConfig.dbName}
+                      onChange={(e) => setProjectConfig({ ...projectConfig, dbName: e.target.value })}
+                      placeholder="ecommerce"
+                      className="w-full rounded bg-slate-800 border border-slate-600 px-2 py-1 text-xs text-white focus:outline-none focus:border-indigo-400 font-mono"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] text-slate-400 mb-0.5">DB User:</label>
+                    <input
+                      type="text"
+                      value={projectConfig.dbUser}
+                      onChange={(e) => setProjectConfig({ ...projectConfig, dbUser: e.target.value })}
+                      placeholder="postgres"
+                      className="w-full rounded bg-slate-800 border border-slate-600 px-2 py-1 text-xs text-white focus:outline-none focus:border-indigo-400 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-400 mb-0.5">DB Password:</label>
+                    <input
+                      type="password"
+                      value={projectConfig.dbPassword || ''}
+                      onChange={(e) => setProjectConfig({ ...projectConfig, dbPassword: e.target.value })}
+                      placeholder="••••••••"
+                      className="w-full rounded bg-slate-800 border border-slate-600 px-2 py-1 text-xs text-white focus:outline-none focus:border-indigo-400 font-mono"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] text-slate-400 mb-0.5">Tabel Kunci Konten / Produk:</label>
+                  <input
+                    type="text"
+                    value={projectConfig.dbKeyTables}
+                    onChange={(e) => setProjectConfig({ ...projectConfig, dbKeyTables: e.target.value })}
+                    placeholder="products, categories, articles, content_posts, users, orders"
+                    className="w-full rounded bg-slate-800 border border-slate-600 px-2 py-1 text-[11px] text-white focus:outline-none focus:border-indigo-400 font-mono"
+                  />
+                </div>
+                <label className="flex items-center gap-1.5 text-[11px] text-amber-300 cursor-pointer pt-0.5">
+                  <input
+                    type="checkbox"
+                    checked={projectConfig.dbReadOnly}
+                    onChange={(e) => setProjectConfig({ ...projectConfig, dbReadOnly: e.target.checked })}
+                    className="rounded bg-slate-800 border-slate-600 text-amber-500"
+                  />
+                  <span>🛡️ Mode Aman (Hanya izinkan SELECT, tolak DROP/DELETE)</span>
+                </label>
+              </div>
+
+              {/* Card 3: Portal Admin Zelvira */}
+              <div className="p-3 rounded bg-slate-900/60 border border-slate-700/70 space-y-2">
+                <h5 className="font-semibold text-xs text-emerald-400 flex items-center gap-1.5">
+                  🔐 Portal Admin Zelvira (admin.zelvira.my.id)
+                </h5>
+                <div>
+                  <label className="block text-[11px] text-slate-300 mb-1">URL Portal Admin:</label>
+                  <input
+                    type="text"
+                    value={projectConfig.adminPortalUrl}
+                    onChange={(e) => setProjectConfig({ ...projectConfig, adminPortalUrl: e.target.value })}
+                    placeholder="https://admin.zelvira.my.id"
+                    className="w-full rounded bg-slate-800 border border-slate-600 px-2 py-1 text-xs text-white focus:outline-none focus:border-emerald-400 font-mono"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] text-slate-400 mb-0.5">Metode Autentikasi:</label>
+                    <select
+                      value={projectConfig.adminAuthType}
+                      onChange={(e) => setProjectConfig({ ...projectConfig, adminAuthType: e.target.value as any })}
+                      className="w-full rounded bg-slate-800 border border-slate-600 px-2 py-1 text-xs text-white focus:outline-none focus:border-emerald-400"
+                    >
+                      <option value="api_token">API Token (Bearer)</option>
+                      <option value="credentials">Akun Login (Username & Password)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-400 mb-0.5">Endpoint Buat Konten:</label>
+                    <input
+                      type="text"
+                      value={projectConfig.adminContentEndpoint}
+                      onChange={(e) => setProjectConfig({ ...projectConfig, adminContentEndpoint: e.target.value })}
+                      placeholder="/api/articles"
+                      className="w-full rounded bg-slate-800 border border-slate-600 px-2 py-1 text-xs text-white focus:outline-none focus:border-emerald-400 font-mono"
+                    />
+                  </div>
+                </div>
+
+                {projectConfig.adminAuthType === 'api_token' ? (
+                  <div>
+                    <label className="block text-[10px] text-slate-400 mb-0.5">Admin API Token / Bearer Key:</label>
+                    <input
+                      type="password"
+                      value={projectConfig.adminToken || ''}
+                      onChange={(e) => setProjectConfig({ ...projectConfig, adminToken: e.target.value })}
+                      placeholder="Masukkan Token API (misal: zelvira-...)"
+                      className="w-full rounded bg-slate-800 border border-slate-600 px-2 py-1 text-xs text-white focus:outline-none focus:border-emerald-400 font-mono"
+                    />
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10px] text-slate-400 mb-0.5">Username Akun Content:</label>
+                      <input
+                        type="text"
+                        value={projectConfig.adminUsername || ''}
+                        onChange={(e) => setProjectConfig({ ...projectConfig, adminUsername: e.target.value })}
+                        placeholder="content_creator"
+                        className="w-full rounded bg-slate-800 border border-slate-600 px-2 py-1 text-xs text-white focus:outline-none focus:border-emerald-400"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-400 mb-0.5">Password Akun Content:</label>
+                      <input
+                        type="password"
+                        value={projectConfig.adminPassword || ''}
+                        onChange={(e) => setProjectConfig({ ...projectConfig, adminPassword: e.target.value })}
+                        placeholder="••••••••"
+                        className="w-full rounded bg-slate-800 border border-slate-600 px-2 py-1 text-xs text-white focus:outline-none focus:border-emerald-400 font-mono"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <label className="flex items-center gap-1.5 text-[11px] text-emerald-300 cursor-pointer pt-0.5">
+                  <input
+                    type="checkbox"
+                    checked={projectConfig.adminForceDraft}
+                    onChange={(e) => setProjectConfig({ ...projectConfig, adminForceDraft: e.target.checked })}
+                    className="rounded bg-slate-800 border-slate-600 text-emerald-500"
+                  />
+                  <span>🔒 Wajibkan Status Draft (Cegah artikel langsung publish tanpa review)</span>
+                </label>
+              </div>
+
+              {/* Card 4: SOP Agent & Keamanan Sistem */}
+              <div className="p-3 rounded bg-slate-900/60 border border-slate-700/70 space-y-2">
+                <h5 className="font-semibold text-xs text-amber-400 flex items-center gap-1.5">
+                  🛡️ Hak Akses Server & Keamanan Agen
+                </h5>
+                <div className="space-y-1.5 pt-1">
+                  <label className="flex items-center gap-1.5 text-[11px] text-slate-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={projectConfig.allowBashExecution}
+                      onChange={(e) => setProjectConfig({ ...projectConfig, allowBashExecution: e.target.checked })}
+                      className="rounded bg-slate-800 border-slate-600 text-sky-500"
+                    />
+                    <span>Izinkan agen membaca file & menjalankan bash/curl di server</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 text-[11px] text-slate-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={projectConfig.requireConfirmationForDestructive}
+                      onChange={(e) => setProjectConfig({ ...projectConfig, requireConfirmationForDestructive: e.target.checked })}
+                      className="rounded bg-slate-800 border-slate-600 text-amber-500"
+                    />
+                    <span>Tolak semua perintah destruktif (rm -rf, DROP TABLE, dll)</span>
+                  </label>
+                </div>
+
+                <div className="mt-2.5 p-2 rounded bg-slate-800/80 border border-slate-700/60 text-[10.5px] text-slate-400 space-y-1">
+                  <b className="text-slate-300 block">Bagaimana Agent Menggunakan Data Ini?</b>
+                  <p>
+                    • <b>contencreator</b>: Otomatis memformat payload JSON konten ke target <code>admin.zelvira.my.id</code> dengan status <code>draft</code>.
+                  </p>
+                  <p>
+                    • <b>seo</b>: Menganalisa struktur URL, keyword, dan heading artikel/katalog produk.
+                  </p>
+                  <p>
+                    • <b>backend</b>: Mengetahui path <code>{projectConfig.ecommercePath}</code> dan tabel database PostgreSQL <code>{projectConfig.dbName}</code>.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Action Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-700/60">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleSaveProjectConfig}
+                  disabled={projectBusy}
+                  className="rounded bg-emerald-600 px-3 py-1.5 font-medium text-xs text-white hover:bg-emerald-500 disabled:opacity-50 transition-colors shadow-sm"
+                >
+                  {projectBusy ? 'Menyimpan…' : '💾 Simpan Konfigurasi'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleTestProjectIntegration}
+                  disabled={projectTesting}
+                  className="rounded bg-slate-700 px-3 py-1.5 font-medium text-xs text-slate-200 hover:bg-slate-600 disabled:opacity-50 transition-colors"
+                >
+                  {projectTesting ? 'Menguji…' : '🧪 Uji Status Koneksi'}
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleSyncProjectToAgents}
+                disabled={projectBusy}
+                className="rounded bg-gradient-to-r from-emerald-600 to-teal-600 px-3.5 py-1.5 font-semibold text-xs text-white hover:brightness-110 disabled:opacity-50 transition-all shadow"
+              >
+                {projectBusy ? 'Sinkronisasi…' : '⚡ Terapkan & Sinkronkan SOUL.md ke Semua Agent'}
               </button>
             </div>
           </div>

@@ -18,6 +18,7 @@ import path from 'node:path'
 import { promisify } from 'node:util'
 import type { Agent, NewTaskInput, Task, TaskOrigin, TaskStatus, AgentDivision, AgentRole } from '@/types/hermes'
 import { parseSoulMarker, soulFor } from './soul'
+import { getProjectContext, formatProjectContextPrompt, DEFAULT_PROJECT_CONFIG } from './project-context'
 import { a2aEndpoint, peerBaseUrl } from './meeting-a2a'
 import { parseDomains } from './a2a'
 import { readEvidence, splitEvidenceBatch, type EvidenceInput, type EvidenceMark, type EvidenceReading } from './evidence'
@@ -628,11 +629,22 @@ export async function executeAgentTask(taskId: string): Promise<{ success: boole
     let summary = ''
     let isSuccess = true
 
+    // Ambil konteks proyek Zelvira agar agent paham /var/www/ecommerce, DB, & admin.zelvira.my.id
+    const projectCfg = await getProjectContext(true).catch(() => DEFAULT_PROJECT_CONFIG)
+    const projectPrompt = formatProjectContextPrompt(projectCfg, undefined, assignee)
+
     // Coba eksekusi lewat native Hermes CLI jika ada
     let cliAnswer: string | null = null
     try {
       const cliRes = await runHermes(
-        ['-p', assignee, 'chat', '-q', `Judul Tugas: ${task.title}\nDetail: ${task.body || task.title}\n\nSelesaikan tugas ini sekarang secara profesional dan lengkap.`, '-Q'],
+        [
+          '-p',
+          assignee,
+          'chat',
+          '-q',
+          `Judul Tugas: ${task.title}\nDetail: ${task.body || task.title}\n\nKonteks Proyek Zelvira:\n- Path: ${projectCfg.ecommercePath}\n- Admin: ${projectCfg.adminPortalUrl} (Endpoint: ${projectCfg.adminContentEndpoint})\n- Keamanan: Konten admin wajib berstatus draft!\n\nSelesaikan tugas ini secara profesional, patuhi aturan keamanan, dan laporkan hasil konkret.`,
+          '-Q',
+        ],
         { timeout: 90_000 },
       )
       const text = (cliRes.stdout || '').trim()
@@ -656,11 +668,11 @@ export async function executeAgentTask(taskId: string): Promise<{ success: boole
             messages: [
               {
                 role: 'system',
-                content: `Kamu adalah AI Agent (${assignee}) di Zelvira Virtual Office. Tugasmu adalah menyelesaikan tugas Kanban berikut secara tuntas, profesional, dan memberikan laporan hasil kerja yang nyata dan konkret.`,
+                content: `Kamu adalah AI Agent (${assignee}) di Zelvira Virtual Office.\n\n${projectPrompt}\n\nTugasmu adalah menyelesaikan tugas Kanban berikut secara tuntas, profesional, mematuhi standar keamanan Zelvira, dan memberikan laporan hasil kerja yang nyata dan konkret.`,
               },
               {
                 role: 'user',
-                content: `Judul Tugas: ${task.title}\nDetail / Uraian Tugas: ${task.body || task.title}\n\nSelesaikan tugas ini sekarang dan laporkan hasil pengerjaannya secara lengkap.`,
+                content: `Judul Tugas: ${task.title}\nDetail / Uraian Tugas: ${task.body || task.title}\n\nSelesaikan tugas ini sekarang dan laporkan hasil pengerjaannya secara lengkap. Jika membuat konten atau artikel untuk admin Zelvira, pastikan struktur payload valid dengan status "draft".`,
               },
             ],
             temperature: 0.7,
@@ -1707,13 +1719,19 @@ export async function createProfile(
     }
     throw new Error(`hermes profile create ${clean} failed: ${(e.stderr || e.message || '').trim()}`)
   }
-  // Soul: 1 prompt dari form → SOUL.md profil. Kosong → template per role.
+  // Soul: 1 prompt dari form → SOUL.md profil. Kosong → template per role + konteks proyek.
   // Marker ikut menyimpan domains (pemetaan office, bukan A2A). Soul kustom
   // tanpa marker tetap diberi marker — role/divisi/domains harus terbaca mesin.
-  const soulText = (opts?.soul || '').trim() || soulFor(role, clean, division, domains)
-  const soulWithMarker = /office:\s*role=/i.test(soulText)
-    ? soulText
-    : `${soulText}\n<!-- office: role=${role} division=${division}${domains.length ? ` domains=${domains.join(',')}` : ''} -->`
+  const baseSoul = (opts?.soul || '').trim() || soulFor(role, clean, division, domains)
+  const projectCfg = await getProjectContext(false).catch(() => DEFAULT_PROJECT_CONFIG)
+  const contextSection = formatProjectContextPrompt(projectCfg, role, clean)
+  const enrichedSoul = baseSoul.includes('KONTEKS PROYEK RESMI ZELVIRA')
+    ? baseSoul
+    : `${baseSoul}\n\n${contextSection}`
+
+  const soulWithMarker = /office:\s*role=/i.test(enrichedSoul)
+    ? enrichedSoul
+    : `${enrichedSoul}\n<!-- office: role=${role} division=${division}${domains.length ? ` domains=${domains.join(',')}` : ''} -->`
   const dir = path.join(hermesHome(), 'profiles', clean)
   await writeFile(path.join(dir, 'SOUL.md'), soulWithMarker, 'utf8')
   // describe: catat role/divisi supaya terbaca tanpa buka SOUL.md

@@ -632,6 +632,17 @@ if (sub === 'chat') {
       process.exit(0)
     }
 
+    let projectCtxPrompt = ''
+    try {
+      const pContextPath = path.join(hermesDir, 'project-context.json')
+      const pDataPath = path.join(process.cwd(), 'data', 'project-context.json')
+      const targetPath = fs.existsSync(pContextPath) ? pContextPath : (fs.existsSync(pDataPath) ? pDataPath : null)
+      if (targetPath) {
+        const pCfg = JSON.parse(fs.readFileSync(targetPath, 'utf8'))
+        projectCtxPrompt = `\n\nKonteks Proyek Zelvira:\n- Path Codebase: ${pCfg.ecommercePath || '/var/www/ecommerce'}\n- Admin Portal: ${pCfg.adminPortalUrl || 'https://admin.zelvira.my.id'} (Endpoint: ${pCfg.adminContentEndpoint || '/api/articles'})\n- Database: PostgreSQL ${pCfg.dbName || 'ecommerce'} di ${pCfg.dbHost || '127.0.0.1'}:${pCfg.dbPort || 5432}\n- Aturan Keamanan Konten: Setiap konten baru yang dibuat di admin WAJIB berstatus "draft" (jangan published langsung).`
+      }
+    } catch {}
+
     if (apiKey && baseUrl) {
       try {
         const url = `${baseUrl.replace(/\/+$/, '')}/chat/completions`
@@ -646,7 +657,7 @@ if (sub === 'chat') {
             messages: [
               {
                 role: 'system',
-                content: `Kamu adalah AI Agent (${profile}) di Zelvira Virtual Office. Tugasmu membantu operasional kantor, manajemen tugas, dan kolaborasi antar-agent secara profesional. Model aktifmu adalah ${modelName}.`,
+                content: `Kamu adalah AI Agent (${profile}) di Zelvira Virtual Office. Tugasmu membantu operasional kantor, manajemen tugas, dan kolaborasi antar-agent secara profesional. Model aktifmu adalah ${modelName}.${projectCtxPrompt}`,
               },
               { role: 'user', content: msg },
             ],
