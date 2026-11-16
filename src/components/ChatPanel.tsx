@@ -278,23 +278,25 @@ export default function ChatPanel({
       {err && <div className="vp-err">{err}</div>}
 
       {creating && !openAgent && (
-        <div className="vp-chat-new">
-          <input
-            className="vp-input"
-            value={newName}
-            autoFocus
-            placeholder="nama agent (mis. riset, backend)"
-            onChange={(e) => setNewName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') void createAgent()
-            }}
-          />
-          <button className="vp-btn" disabled={createBusy || !newName.trim()} onClick={createAgent}>
-            {createBusy ? '…' : 'Buat'}
-          </button>
-          <div className="vp-note">
-            Agent = profil Hermes. Tiap agent punya memory sendiri, dan muncul di kantor
-            setelah dibuat.
+        <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-3 mb-3 flex flex-col gap-2">
+          <label className="text-[11px] font-bold text-slate-300">BUAT AGENT BARU</label>
+          <div className="flex items-center gap-2">
+            <input
+              className="vp-input flex-1 text-xs"
+              value={newName}
+              autoFocus
+              placeholder="cth: riset, backend, copywriter"
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void createAgent()
+              }}
+            />
+            <button className="vp-btn primary" disabled={createBusy || !newName.trim()} onClick={createAgent}>
+              {createBusy ? '…' : '+ Buat'}
+            </button>
+          </div>
+          <div className="text-[11px] text-slate-400">
+            Profil Hermes mandiri dengan memori & avatar terpisah di kantor virtual.
           </div>
         </div>
       )}

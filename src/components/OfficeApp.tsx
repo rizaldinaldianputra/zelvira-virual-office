@@ -13,6 +13,7 @@ import SystemPanel from './SystemPanel'
 import BoardPanel from './BoardPanel'
 import ChatPanel from './ChatPanel'
 import NewTaskDialog from './NewTaskDialog'
+import TaskHubModal from './TaskHubModal'
 import KanbanModal from './KanbanModal'
 import OfficeNameDialog from './OfficeNameDialog'
 import WorkflowEnginePanel from './workflow/WorkflowEnginePanel'
@@ -54,6 +55,7 @@ export default function OfficeApp() {
   const [chatOpen, setChatOpen] = useState(false)
   const [boardOpen, setBoardOpen] = useState(false)
   const [nameOpen, setNameOpen] = useState(false)
+  const [taskHubOpen, setTaskHubOpen] = useState(false)
   const [workflowOpen, setWorkflowOpen] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
 
@@ -192,8 +194,8 @@ export default function OfficeApp() {
         <nav className="vp-topbar-nav flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5" aria-label="Panel">
           <button
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/25 hover:border-emerald-400 transition-all shadow-sm"
-            onClick={() => setNewTaskOpen(true)}
-            title="Tambah Tugas Baru (N)"
+            onClick={() => setTaskHubOpen(true)}
+            title="Buka Pusat Manajemen Tugas & List Agent"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <line x1="12" y1="5" x2="12" y2="19" />
@@ -354,6 +356,15 @@ export default function OfficeApp() {
         open={chatOpen}
         onClose={() => setChatOpen(false)}
         onAgentCreated={() => void loadTasks()}
+      />
+      <TaskHubModal
+        open={taskHubOpen}
+        onClose={() => setTaskHubOpen(false)}
+        onNewTask={() => setNewTaskOpen(true)}
+        onOpenChat={(agentName) => {
+          select(agentName)
+          setChatOpen(true)
+        }}
       />
       <NewTaskDialog />
       <WorkflowEnginePanel open={workflowOpen} onClose={() => setWorkflowOpen(false)} />

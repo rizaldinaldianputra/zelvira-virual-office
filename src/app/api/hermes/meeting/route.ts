@@ -5,6 +5,7 @@ import {
   listArchived,
   listMeetings,
   readArchived,
+  setLlmConfig,
   startMeeting,
 } from '@/lib/hermes/meeting'
 import { listAgents, listTasks } from '@/lib/hermes/kanban'
@@ -66,6 +67,22 @@ export async function POST(req: NextRequest) {
   const denied = assertLocalWriteRequest(req)
   if (denied) return denied
   const body = await req.json().catch(() => ({}))
+
+  // Aksi simpan konfigurasi LLM langsung
+  if (body?.action === 'configure') {
+    const apiKey = String(body?.apiKey || '').trim()
+    const baseUrl = String(body?.baseUrl || '').trim() || 'https://api.openai.com/v1'
+    const model = String(body?.model || '').trim() || 'gpt-4o-mini'
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: { code: 'invalid_request', message: 'API Key wajib diisi', status: 400 } },
+        { status: 400 },
+      )
+    }
+    await setLlmConfig(apiKey, baseUrl, model)
+    return NextResponse.json({ success: true, configured: true, baseUrl, model })
+  }
+
   const mode = body?.mode === 'a2a' ? 'a2a' : 'simulasi'
   try {
     const tasks = await listTasks()

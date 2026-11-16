@@ -645,15 +645,15 @@ export default function CronPanel({
           </div>
 
           {/* ---------------- DELEGASI AGENT ---------------- */}
-          <div className="rounded-lg border border-slate-700 bg-slate-900/70 p-3 space-y-2">
-            <label className="vp-sub flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5 uppercase">
-                <span>🤖</span> DELEGASIKAN KE AI AGENT
+          <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3.5 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5 uppercase tracking-wider">
+                <span>🤖</span> Delegasi ke AI Agent
               </span>
-              <span className="text-[10px] text-indigo-400 font-normal">
-                {agent ? `Terpilih: @${agent}` : 'Belum memilih agent'}
+              <span className="text-[10px] text-indigo-400 font-mono">
+                {agent ? `@${agent}` : 'Umum (Default)'}
               </span>
-            </label>
+            </div>
             <div className="flex items-center gap-2">
               <select
                 className="vp-input w-full font-medium"
@@ -672,15 +672,12 @@ export default function CronPanel({
                   type="button"
                   className="vp-btn text-xs px-2.5 py-1 text-slate-400 hover:text-white"
                   onClick={() => setAgent('')}
-                  title="Batalkan pilihan agent (kembali ke umum)"
+                  title="Batalkan pilihan agent"
                 >
-                  ✕ Reset
+                  ✕
                 </button>
               )}
             </div>
-            <span className="text-[10px] text-slate-400 block mt-0.5">
-              Tugas cronjob akan dieksekusi atas nama agent ini, menggunakan kepribadian (SOUL.md), memori profil, dan toolset terkait.
-            </span>
           </div>
 
           <div className="flex items-center justify-between border-b border-slate-700 pb-2">
@@ -854,31 +851,46 @@ export default function CronPanel({
             </div>
           )}
 
-          <label className="vp-sub">PROMPT PERINTAH</label>
-          <textarea
-            className="vp-input"
-            rows={3}
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            placeholder="perintah"
-          />
+          {/* ---------------- PERINTAH & NAMA JADWAL ---------------- */}
+          <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3.5 space-y-3">
+            <div>
+              <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block mb-1">
+                Prompt Perintah Eksekusi <span className="text-rose-400">*</span>
+              </label>
+              <textarea
+                className="vp-input w-full text-xs font-medium"
+                rows={3}
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                placeholder="Perintah yang akan dijalankan oleh AI saat jadwal tiba..."
+              />
+            </div>
 
-          <label className="vp-sub">NAMA (OPSIONAL)</label>
-          <input
-            className="vp-input"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="cek rilis harian"
-          />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-800/80 items-center">
+              <div>
+                <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block mb-1">
+                  Nama Jadwal (Opsional)
+                </label>
+                <input
+                  className="vp-input w-full text-xs"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Misal: Cek Rilis Harian"
+                />
+              </div>
 
-          <label className="vp-check">
-            <input
-              type="checkbox"
-              checked={liveNow}
-              onChange={(e) => setLiveNow(e.target.checked)}
-            />
-            <span>langsung aktif (kalau tidak dicentang, job dibuat pause dulu)</span>
-          </label>
+              <div className="pt-4 sm:pt-4">
+                <label className="vp-check flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={liveNow}
+                    onChange={(e) => setLiveNow(e.target.checked)}
+                  />
+                  <span className="text-xs text-slate-300">Langsung aktifkan jadwal</span>
+                </label>
+              </div>
+            </div>
+          </div>
 
           <button
             className="vp-btn py-2.5 font-bold text-sm shadow-md flex items-center justify-center gap-2"

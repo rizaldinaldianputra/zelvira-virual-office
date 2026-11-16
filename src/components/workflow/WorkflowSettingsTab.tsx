@@ -76,67 +76,95 @@ export default function WorkflowSettingsTab() {
       {message && <div className="vp-ok" role="status">{message}</div>}
 
       <form onSubmit={saveSettings} className="flex flex-col gap-3">
-        <div>
-          <label className="vp-sub">BATAS EKSEKUSI PARALEL MAKSIMAL</label>
-          <input
-            className="vp-input"
-            type="number"
-            min={1}
-            max={20}
-            value={settings.max_parallel_executions}
-            onChange={(e) => setSettings({ ...settings, max_parallel_executions: e.target.value })}
-          />
-          <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>
-            Mencegah lonjakan beban CPU/RAM pada server dengan membatasi eksekusi concurrent.
+        {/* Card 1: Batas & Waktu Eksekusi */}
+        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3.5 flex flex-col gap-2.5">
+          <div className="text-xs font-bold text-slate-300">⚡ Batas & Waktu Eksekusi</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="text-[11px] font-medium text-slate-400 block mb-1">
+                Batas Paralel Maksimal
+              </label>
+              <input
+                className="vp-input w-full text-xs"
+                type="number"
+                min={1}
+                max={20}
+                value={settings.max_parallel_executions}
+                onChange={(e) => setSettings({ ...settings, max_parallel_executions: e.target.value })}
+              />
+              <div className="text-[10px] text-slate-500 mt-1">Maksimum eksekusi concurrent bersamaan.</div>
+            </div>
+
+            <div>
+              <label className="text-[11px] font-medium text-slate-400 block mb-1">
+                Timeout Standar Per Langkah (Detik)
+              </label>
+              <input
+                className="vp-input w-full text-xs"
+                type="number"
+                min={10}
+                max={600}
+                value={settings.default_step_timeout_seconds}
+                onChange={(e) => setSettings({ ...settings, default_step_timeout_seconds: e.target.value })}
+              />
+              <div className="text-[10px] text-slate-500 mt-1">Batas waktu sebelum langkah dianggap gagal.</div>
+            </div>
           </div>
         </div>
 
-        <div>
-          <label className="vp-sub">TIMEOUT STANDAR PER LANGKAH (DETIK)</label>
-          <input
-            className="vp-input"
-            type="number"
-            min={10}
-            max={600}
-            value={settings.default_step_timeout_seconds}
-            onChange={(e) => setSettings({ ...settings, default_step_timeout_seconds: e.target.value })}
-          />
+        {/* Card 2: Keandalan & Retensi */}
+        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3.5 flex flex-col gap-2.5">
+          <div className="text-xs font-bold text-slate-300">🔄 Keandalan & Pembersihan Log</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="text-[11px] font-medium text-slate-400 block mb-1">
+                Percobaan Ulang (Retry Count)
+              </label>
+              <input
+                className="vp-input w-full text-xs"
+                type="number"
+                min={0}
+                max={5}
+                value={settings.default_retry_count}
+                onChange={(e) => setSettings({ ...settings, default_retry_count: e.target.value })}
+              />
+              <div className="text-[10px] text-slate-500 mt-1">Percobaan otomatis saat step network/AI gagal.</div>
+            </div>
+
+            <div>
+              <label className="text-[11px] font-medium text-slate-400 block mb-1">
+                Retensi Log (Hari)
+              </label>
+              <input
+                className="vp-input w-full text-xs"
+                type="number"
+                min={7}
+                max={365}
+                value={settings.auto_cleanup_logs_days}
+                onChange={(e) => setSettings({ ...settings, auto_cleanup_logs_days: e.target.value })}
+              />
+              <div className="text-[10px] text-slate-500 mt-1">Log eksekusi otomatis dibersihkan setelah X hari.</div>
+            </div>
+          </div>
         </div>
 
-        <div>
-          <label className="vp-sub">JUMLAH PERCOBAAN ULANG STANDAR (RETRY)</label>
-          <input
-            className="vp-input"
-            type="number"
-            min={0}
-            max={5}
-            value={settings.default_retry_count}
-            onChange={(e) => setSettings({ ...settings, default_retry_count: e.target.value })}
-          />
-        </div>
-
-        <div>
-          <label className="vp-sub">RETENSI PEMBERSIHAN LOG (HARI)</label>
-          <input
-            className="vp-input"
-            type="number"
-            min={7}
-            max={365}
-            value={settings.auto_cleanup_logs_days}
-            onChange={(e) => setSettings({ ...settings, auto_cleanup_logs_days: e.target.value })}
-          />
-        </div>
-
-        <div style={{ background: '#111822', border: '1px solid #1e293b', borderRadius: 6, padding: 10, marginTop: 4 }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#f8fafc', cursor: 'pointer' }}>
+        {/* Card 3: Kebijakan Keamanan */}
+        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3.5">
+          <label className="flex items-start gap-2.5 text-xs text-slate-300 cursor-pointer">
             <input
               type="checkbox"
+              className="mt-0.5 rounded border-slate-700 bg-slate-800 text-indigo-500"
               checked={settings.require_approval_high_risk === 'true'}
               onChange={(e) =>
                 setSettings({ ...settings, require_approval_high_risk: e.target.checked ? 'true' : 'false' })
               }
             />
-            <span>Wajibkan approval manual untuk semua tool berisiko tinggi (Database Query, External API, File Writer)</span>
+            <div>
+              <span className="font-semibold text-slate-200">Wajibkan approval manual untuk aksi berisiko tinggi</span>
+              <div className="text-[11px] text-slate-400 mt-0.5">
+                Meminta konfirmasi admin sebelum menjalankan query database langsung atau API eksternal kritis.
+              </div>
+            </div>
           </label>
         </div>
 

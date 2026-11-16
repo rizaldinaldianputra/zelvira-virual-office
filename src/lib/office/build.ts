@@ -1357,34 +1357,40 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     if (len < 0.6) return
     const cx = (x1 + x2) / 2
     const cz = (z1 + z2) / 2
-    const glassH = floorH - CUT_H
+    const glassH = floorH - CUT_H - 0.02 // Tinggi kaca bersih tanpa tabrakan vertikal
 
     // 1. Kaca arsitektural tembus pandang dari parapet ke balok plafon
     const glassPane = new THREE.Mesh(
-      new THREE.BoxGeometry(horizontal ? len : 0.08, glassH, horizontal ? 0.08 : len),
+      new THREE.BoxGeometry(horizontal ? len : 0.06, glassH, horizontal ? 0.06 : len),
       new THREE.MeshPhysicalMaterial({
         color: 0x90cdf4,
-        roughness: 0.06,
-        metalness: 0.1,
-        transmission: 0.88,
-        thickness: 0.05,
+        roughness: 0.05,
+        metalness: 0.05,
+        transmission: 0.9,
+        thickness: 0.04,
         transparent: true,
-        opacity: 0.5,
+        opacity: 0.45,
+        depthWrite: false, // Mencegah Z-fighting / depth contention dengan elemen interior
+        side: THREE.DoubleSide,
       }),
     )
-    glassPane.position.set(cx, yFloor + CUT_H + glassH / 2, cz)
+    glassPane.position.set(cx, yFloor + CUT_H + glassH / 2 + 0.01, cz)
+    glassPane.castShadow = false
+    glassPane.receiveShadow = false
     glassPane.raycast = () => {}
     group.add(glassPane)
 
     // 2. Balok lintel / spandrel transom arsitektural di puncak lantai
     const header = box(
-      horizontal ? len : WALL_T + 0.06,
-      0.24,
-      horizontal ? WALL_T + 0.06 : len,
+      horizontal ? len : WALL_T,
+      0.16,
+      horizontal ? WALL_T : len,
       0x1e293b,
       { metal: 0.6, rough: 0.3 },
     )
-    header.position.set(cx, yFloor + floorH - 0.12, cz)
+    header.position.set(cx, yFloor + floorH - 0.08, cz)
+    header.castShadow = false
+    header.receiveShadow = false
     header.raycast = () => {}
     group.add(header)
 
@@ -1567,65 +1573,60 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
       [-HALF_W, gap.x1],
       [gap.x2, HALF_W],
     ]
-    for (const [x1, x2] of runs) {
-      const w = x2 - x1
-      if (w <= 0.05) continue
-      const mid = (x1 + x2) / 2
-      const rail = new THREE.Mesh(new THREE.BoxGeometry(w, 1.0, 0.06), glassMat)
-      rail.position.set(mid, LEVEL_H + 0.5, -9)
-      group.add(rail)
-      const cap = box(w, 0.07, 0.12, 0x8a8f95, { metal: 0.6, rough: 0.35 })
-      cap.position.set(mid, LEVEL_H + 1.0, -9)
-      group.add(cap)
-      // posts every 4 m, so it reads as a balustrade and not a floating pane
-      for (let x = x1 + 1; x <= x2 - 1; x += 4) {
-        const post = cyl(0.04, 0.04, 1.0, 0x8a8f95, 8, 0.6)
-        post.position.set(x, LEVEL_H + 0.5, -9)
-        group.add(post)
-      }
-    }
-    // A short return rail on each side of the mouth, so the gap reads as a real
-    // opening with edges rather than a hole in the railing.
-    for (const gx of [gap.x1, gap.x2]) {
-      const end = cyl(0.045, 0.045, 1.05, 0x8a8f95, 8, 0.6)
-      end.position.set(gx, LEVEL_H + 0.5, -9)
-      group.add(end)
-    }
 
-    // Dinding Tirai Kaca Arsitektural Penuh Lantai 1 (Cermis Jendela Floor-to-Ceiling di z = -9.0)
-    // Menghubungkan balustrade (y = LEVEL_H + 1.0) ke plafon/lantai 2 (y = LEVEL_H + LEVEL_H = LEVEL2_Y)
-    const facadeH = LEVEL_H - 1.0 // 2.4 m
+    // Dinding Tirai Kaca Arsitektural Mewah Menyatu Lantai 1 (Floor-to-Ceiling di z = -9.0)
+    // Satu bidang kaca kontinu tanpa tiang silinder/potongan sambungan, bebas flicker Z-fighting
+    const seamlessGlassMat = track(
+      new THREE.MeshPhysicalMaterial({
+        color: 0x90cdf4,
+        roughness: 0.05,
+        metalness: 0.05,
+        transmission: 0.9,
+        thickness: 0.04,
+        transparent: true,
+        opacity: 0.45,
+        depthWrite: false, // Mencegah Z-fighting dengan koridor & ruang rapat di belakangnya
+        side: THREE.DoubleSide,
+      }),
+    )
+
     for (const [x1, x2] of runs) {
       const w = x2 - x1
       if (w <= 0.05) continue
       const mid = (x1 + x2) / 2
 
-      // Kaca arsitektural jernih transparan
+      // 1. Kaca arsitektural jernih transparan utuh floor-to-ceiling (y = LEVEL_H s.d. LEVEL2_Y)
       const windowGlass = new THREE.Mesh(
-        new THREE.BoxGeometry(w, facadeH, 0.06),
-        new THREE.MeshPhysicalMaterial({
-          color: 0x90cdf4,
-          roughness: 0.05,
-          metalness: 0.1,
-          transmission: 0.88,
-          thickness: 0.05,
-          transparent: true,
-          opacity: 0.48,
-        }),
+        new THREE.BoxGeometry(w, LEVEL_H - 0.16, 0.05),
+        seamlessGlassMat,
       )
-      windowGlass.position.set(mid, LEVEL_H + 1.0 + facadeH / 2, -9)
+      windowGlass.position.set(mid, LEVEL_H + LEVEL_H / 2, -9)
+      windowGlass.castShadow = false
+      windowGlass.receiveShadow = false
       windowGlass.raycast = () => {}
       group.add(windowGlass)
 
-      // Balok spandrel / transom atas di bawah lantai 2
-      const topBeam = box(w, 0.2, 0.16, 0x1e293b, { metal: 0.7, rough: 0.3 })
-      topBeam.position.set(mid, LEVEL2_Y - 0.1, -9)
+      // 2. Balok sill bawah lantai 1
+      const botSill = box(w, 0.08, 0.12, 0x1e293b, { metal: 0.7, rough: 0.3 })
+      botSill.position.set(mid, LEVEL_H + 0.04, -9)
+      botSill.castShadow = false
+      botSill.receiveShadow = false
+      botSill.raycast = () => {}
+      group.add(botSill)
+
+      // 3. Balok spandrel / transom atas di bawah lantai 2
+      const topBeam = box(w, 0.16, 0.14, 0x1e293b, { metal: 0.7, rough: 0.3 })
+      topBeam.position.set(mid, LEVEL2_Y - 0.08, -9)
+      topBeam.castShadow = false
+      topBeam.receiveShadow = false
       topBeam.raycast = () => {}
       group.add(topBeam)
 
-      // Transom horizontal tengah (kaca open panoramic tanpa tiang vertikal)
+      // 4. Transom horizontal tengah (kaca open panoramic tanpa tiang vertikal)
       const midTransom = box(w, 0.06, 0.08, 0x1e293b, { metal: 0.7, rough: 0.3 })
-      midTransom.position.set(mid, LEVEL_H + 1.0 + facadeH * 0.55, -9)
+      midTransom.position.set(mid, LEVEL_H + 1.05, -9)
+      midTransom.castShadow = false
+      midTransom.receiveShadow = false
       midTransom.raycast = () => {}
       group.add(midTransom)
     }
@@ -1634,8 +1635,10 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     const portalW = gap.x2 - gap.x1
     const portalMidX = (gap.x1 + gap.x2) / 2
     // Balok kusen atas pintu masuk
-    const portalHeader = box(portalW + 0.3, 0.25, 0.18, 0x1e293b, { metal: 0.8, rough: 0.25 })
-    portalHeader.position.set(portalMidX, LEVEL2_Y - 0.12, -9)
+    const portalHeader = box(portalW + 0.3, 0.2, 0.16, 0x1e293b, { metal: 0.8, rough: 0.25 })
+    portalHeader.position.set(portalMidX, LEVEL2_Y - 0.1, -9)
+    portalHeader.castShadow = false
+    portalHeader.receiveShadow = false
     portalHeader.raycast = () => {}
     group.add(portalHeader)
 
@@ -1646,9 +1649,11 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
     ] as const) {
       const doorGlass = new THREE.Mesh(
         new THREE.BoxGeometry(pw, LEVEL_H - 0.3, 0.04),
-        glassMat,
+        seamlessGlassMat,
       )
       doorGlass.position.set(dx, LEVEL_H + (LEVEL_H - 0.3) / 2, -9.02)
+      doorGlass.castShadow = false
+      doorGlass.receiveShadow = false
       doorGlass.raycast = () => {}
       group.add(doorGlass)
     }
@@ -2068,55 +2073,30 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
       bezelBot.raycast = () => {}
       jumbotron.add(bezelBot)
 
-      // Layar LED Jumbotron "ZELVIRA OFFICE"
-      const jumbotronTex = track(zelviraOfficeRooftopTexture())
-      const jumbotronMat = new THREE.MeshStandardMaterial({
-        map: jumbotronTex,
-        roughness: 0.15,
-        metalness: 0.1,
-        emissive: 0xffffff,
-        emissiveMap: jumbotronTex,
-        emissiveIntensity: 1.25,
-      })
+      // Layar LED Jumbotron: Menampilkan Logo Asli Zelvira dari /logo.png secara Megah dan Presisi
+      const jumbotronLogoMat = track(
+        new THREE.MeshStandardMaterial({
+          map: logoTexture(),
+          roughness: 0.12,
+          metalness: 0.05,
+          emissive: 0xffffff,
+          emissiveMap: logoTexture(),
+          emissiveIntensity: 1.25,
+        }),
+      )
 
-      // Sisi depan (menghadap selatan/courtyard dan kamera)
-      const screenFront = new THREE.Mesh(new THREE.PlaneGeometry(screenW, screenH), jumbotronMat)
+      // Sisi depan jumbotron (menghadap selatan / courtyard dan kamera utama)
+      const screenFront = new THREE.Mesh(new THREE.PlaneGeometry(screenW, screenH), jumbotronLogoMat)
       screenFront.position.set(0, 0, screenD / 2 + 0.02)
       screenFront.raycast = () => {}
       jumbotron.add(screenFront)
 
-      // Sisi belakang (menghadap utara/pantai)
-      const screenBack = new THREE.Mesh(new THREE.PlaneGeometry(screenW, screenH), jumbotronMat)
+      // Sisi belakang jumbotron (menghadap utara / pantai dan lautan)
+      const screenBack = new THREE.Mesh(new THREE.PlaneGeometry(screenW, screenH), jumbotronLogoMat)
       screenBack.rotation.y = Math.PI
       screenBack.position.set(0, 0, -screenD / 2 - 0.02)
       screenBack.raycast = () => {}
       jumbotron.add(screenBack)
-
-      // Tampilan Logo Asli Zelvira dari /logo.png pada Jumbotron (Depan & Belakang)
-      const jumbotronLogoMat = new THREE.MeshStandardMaterial({
-        map: logoTexture(),
-        transparent: true,
-        roughness: 0.1,
-        metalness: 0.05,
-        side: THREE.DoubleSide,
-        emissive: new THREE.Color(0xffffff),
-        emissiveMap: logoTexture(),
-        emissiveIntensity: 1.15,
-      })
-
-      const logoSize = 3.6
-      // Logo sisi depan menghadap selatan (courtyard)
-      const frontLogo = new THREE.Mesh(new THREE.PlaneGeometry(logoSize, logoSize), jumbotronLogoMat)
-      frontLogo.position.set(-4.5, 0, screenD / 2 + 0.04)
-      frontLogo.raycast = () => {}
-      jumbotron.add(frontLogo)
-
-      // Logo sisi belakang menghadap utara (pantai)
-      const backLogo = new THREE.Mesh(new THREE.PlaneGeometry(logoSize, logoSize), jumbotronLogoMat)
-      backLogo.rotation.y = Math.PI
-      backLogo.position.set(-4.5, 0, -screenD / 2 - 0.04)
-      backLogo.raycast = () => {}
-      jumbotron.add(backLogo)
 
       // Lampu suar keselamatan penerbangan merah di kedua sudut atas
       for (const bx of [-screenW / 2 - 0.2, screenW / 2 + 0.2]) {
@@ -3825,17 +3805,13 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
   const asphaltTex = track(asphaltTexture('#5a5f63', '#8b9095'))
   asphaltTex.repeat.set(24, 3)
   const pavementTex = track(pavementTexture('#9aa0a4', '#7f868b'))
-  const sandTex = track(sandTexture('#f5dfb8', '#e2c08b', '#fdf2db'))
-  sandTex.wrapS = THREE.RepeatWrapping
-  sandTex.wrapT = THREE.RepeatWrapping
-  sandTex.repeat.set(16, 5)
 
+  // Material pasir pantai tropis: flat, solid, tenang dan diam warnanya tanpa corak bergelombang/moiré
   const sandMat = track(
     new THREE.MeshStandardMaterial({
-      map: sandTex,
-      roughness: 0.98,
-      metalness: 0.02,
-      color: 0xfff0d6,
+      color: 0xeed6a1,
+      roughness: 1.0,
+      metalness: 0.0,
     }),
   )
 
@@ -3968,13 +3944,13 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
       metalness: 0.1,
     })
 
-    // Front sign face (faces south toward street)
-    const frontLogo = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.6), pylonLogoMat)
+    // Front sign face (faces south toward street) - aspek rasio 3.3:1 sesuai logo.png
+    const frontLogo = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 0.55), pylonLogoMat)
     frontLogo.position.set(0, 2.6, 0.235)
     pylon.add(frontLogo)
 
     // Back sign face (faces north toward building)
-    const backLogo = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.6), pylonLogoMat)
+    const backLogo = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 0.55), pylonLogoMat)
     backLogo.rotation.y = Math.PI
     backLogo.position.set(0, 2.6, -0.235)
     pylon.add(backLogo)
@@ -4001,7 +3977,7 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
   // Sayap Pasir Pantai Barat (Kiri Gedung, x: -70 s.d. -28, z: -46 s.d. 21)
   const westBeach = new THREE.Mesh(new THREE.PlaneGeometry(42, 67), sandMat)
   westBeach.rotation.x = -Math.PI / 2
-  westBeach.position.set(-49, -0.045, -12.5)
+  westBeach.position.set(-49, -0.035, -12.5)
   westBeach.receiveShadow = true
   westBeach.raycast = () => {}
   beachGroup.add(westBeach)
@@ -4009,7 +3985,7 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
   // Sayap Pasir Pantai Timur (Kanan Gedung, x: 28 s.d. 70, z: -46 s.d. 21)
   const eastBeach = new THREE.Mesh(new THREE.PlaneGeometry(42, 67), sandMat)
   eastBeach.rotation.x = -Math.PI / 2
-  eastBeach.position.set(49, -0.045, -12.5)
+  eastBeach.position.set(49, -0.035, -12.5)
   eastBeach.receiveShadow = true
   eastBeach.raycast = () => {}
   beachGroup.add(eastBeach)
@@ -4017,7 +3993,7 @@ export function buildOffice(scene: THREE.Scene, hour: number) {
   // Hamparan Pasir Pantai Luas Belakang Gedung (Utara, x: -70 s.d. 70, z: -46 s.d. -21)
   const northBeach = new THREE.Mesh(new THREE.PlaneGeometry(140, 25), sandMat)
   northBeach.rotation.x = -Math.PI / 2
-  northBeach.position.set(0, -0.045, -33.5)
+  northBeach.position.set(0, -0.035, -33.5)
   northBeach.receiveShadow = true
   northBeach.raycast = () => {}
   beachGroup.add(northBeach)

@@ -39,6 +39,38 @@ export default function MeetingPanel({
   const [cancelBusy, setCancelBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
+  // Konfigurasi LLM cepat langsung di UI rapat
+  const [cfgApiKey, setCfgApiKey] = useState('')
+  const [cfgBaseUrl, setCfgBaseUrl] = useState('https://api.openai.com/v1')
+  const [cfgModel, setCfgModel] = useState('gpt-4o-mini')
+  const [cfgBusy, setCfgBusy] = useState(false)
+  const [showConfigBox, setShowConfigBox] = useState(false)
+
+  async function saveConfig() {
+    if (!cfgApiKey.trim()) return
+    setCfgBusy(true)
+    setErr(null)
+    try {
+      const res = await fetchJson('/api/hermes/meeting', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'configure',
+          apiKey: cfgApiKey.trim(),
+          baseUrl: cfgBaseUrl.trim() || 'https://api.openai.com/v1',
+          model: cfgModel.trim() || 'gpt-4o-mini',
+        }),
+      })
+      if (!res.ok) throw new Error(res.error || 'Gagal menyimpan konfigurasi LLM')
+      await refresh()
+      setShowConfigBox(false)
+    } catch (e) {
+      setErr((e as Error).message)
+    } finally {
+      setCfgBusy(false)
+    }
+  }
+
   /**
    * Which card is open. A live meeting reads from its in-memory record; an
    * archived one is fetched by id. `kind` decides which.
@@ -371,10 +403,69 @@ export default function MeetingPanel({
               + Buat rapat baru
             </button>
             {!configured && (
-              <div className="vp-note">
-                LLM belum dikonfigurasi — rapat tidak bisa dimulai. Isi{' '}
-                <code>AI_BASE_URL</code> dan <code>AI_API_KEY</code> di{' '}
-                <code>.env.local</code>.
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 flex flex-col gap-2.5 text-xs">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="font-semibold text-amber-300 flex items-center gap-1.5">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="12" y1="8" x2="12" y2="12" />
+                      <line x1="12" y1="16" x2="12.01" y2="16" />
+                    </svg>
+                    <span>LLM Belum Dikonfigurasi untuk Mode Simulasi</span>
+                  </div>
+                  <button
+                    className="text-[11px] font-bold text-sky-400 hover:text-sky-300 underline"
+                    onClick={() => setShowConfigBox(!showConfigBox)}
+                  >
+                    {showConfigBox ? 'Tutup Pengaturan' : '⚙️ Masukkan API Key Disini'}
+                  </button>
+                </div>
+                <p className="text-slate-300 leading-relaxed">
+                  Mode Simulasi membutuhkan API Key LLM (OpenAI, OpenRouter, DeepSeek, vLLM, dsb).
+                  Anda juga dapat menggunakan <b>Mode A2A</b> (tanpa LLM simulasi) dengan agent yang aktif.
+                </p>
+
+                {showConfigBox && (
+                  <div className="mt-1 pt-2.5 border-t border-amber-500/20 flex flex-col gap-2 bg-slate-900/60 p-3 rounded-lg">
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-300 block mb-1">AI Base URL</label>
+                      <input
+                        type="text"
+                        className="vp-input w-full text-xs font-mono"
+                        placeholder="https://api.openai.com/v1"
+                        value={cfgBaseUrl}
+                        onChange={(e) => setCfgBaseUrl(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-300 block mb-1">AI API Key</label>
+                      <input
+                        type="password"
+                        className="vp-input w-full text-xs font-mono"
+                        placeholder="sk-..."
+                        value={cfgApiKey}
+                        onChange={(e) => setCfgApiKey(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-300 block mb-1">Model Name</label>
+                      <input
+                        type="text"
+                        className="vp-input w-full text-xs font-mono"
+                        placeholder="gpt-4o-mini"
+                        value={cfgModel}
+                        onChange={(e) => setCfgModel(e.target.value)}
+                      />
+                    </div>
+                    <button
+                      className="vp-btn mt-1 text-xs font-bold"
+                      disabled={cfgBusy || !cfgApiKey.trim()}
+                      onClick={saveConfig}
+                    >
+                      {cfgBusy ? 'Menyimpan…' : '✓ Simpan & Aktifkan Rapat'}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -411,81 +502,198 @@ export default function MeetingPanel({
         )
       ) : (
         /* ---------------------------------------------------- create form -- */
-        <>
-          <label className="vp-sub">TOPIK</label>
-          <textarea
-            className="vp-input"
-            rows={2}
-            value={topic}
-            onChange={(e) => setTopic(e.target.value)}
-            placeholder="Rencana rilis endpoint refund"
-          />
+        <div className="flex flex-col gap-3">
+          {/* Card 1: Topik Rapat */}
+          <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3.5 flex flex-col gap-1.5">
+            <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block">
+              Topik & Agenda Rapat <span className="text-rose-400">*</span>
+            </label>
+            <textarea
+              className="vp-input w-full font-medium"
+              rows={2}
+              value={topic}
+              onChange={(e) => setTopic(e.target.value)}
+              placeholder="Contoh: Rencana rilis endpoint payment gateway & migrasi database"
+              autoFocus
+            />
+          </div>
 
-          <label className="vp-sub">PESERTA (2–4) · {agents.length} agent aktif</label>
-          <div className="flex flex-wrap gap-2">
-            {agents.map((a) => (
-              <button
-                key={a.name}
-                className={`vp-chip-btn ${picked.includes(a.name) ? 'on' : ''}`}
-                onClick={() => toggle(a.name)}
+          {/* Card 2: Peserta & Pembawa Acara */}
+          <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3.5 flex flex-col gap-3">
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+                  Pilih Peserta (2–4 Agent)
+                </label>
+                <span className="text-[11px] text-sky-400 font-semibold">
+                  {picked.length} terpilih
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {agents.map((a) => {
+                  const isPicked = picked.includes(a.name)
+                  return (
+                    <button
+                      key={a.name}
+                      type="button"
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all flex items-center gap-1.5 ${
+                        isPicked
+                          ? 'bg-sky-500/20 border-sky-400 text-sky-200 shadow-sm'
+                          : 'bg-slate-800/60 border-slate-700/60 text-slate-400 hover:text-slate-200'
+                      }`}
+                      onClick={() => toggle(a.name)}
+                    >
+                      <span>{isPicked ? '✓' : '+'}</span>
+                      <span>{a.displayName}</span>
+                      <span className="text-[10px] font-normal text-slate-500">({a.role})</span>
+                    </button>
+                  )
+                })}
+                {!agents.length && <span className="vp-muted">Belum ada agent aktif</span>}
+              </div>
+            </div>
+
+            {picked.length > 0 && (
+              <div className="pt-2 border-t border-slate-800">
+                <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block mb-1">
+                  Pembawa Acara (Moderator)
+                </label>
+                <select
+                  className="vp-input w-full"
+                  value={moderator}
+                  onChange={(e) => setModerator(e.target.value)}
+                >
+                  {picked.map((p) => (
+                    <option key={p} value={p}>
+                      👑 {p}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+
+          {/* Card 3: MODE RAPAT */}
+          <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3.5 flex flex-col gap-2">
+            <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block">
+              MODE RAPAT
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <label
+                className={`p-2.5 rounded-lg border cursor-pointer transition-all flex items-start gap-2.5 ${
+                  meetingMode === 'a2a'
+                    ? 'bg-sky-500/15 border-sky-400/80 text-white shadow-sm'
+                    : 'bg-slate-800/40 border-slate-800 text-slate-400 hover:border-slate-700'
+                }`}
               >
-                {a.displayName}
-                <i className="vp-chip-role">{a.status}</i>
-              </button>
-            ))}
-            {!agents.length && <span className="vp-muted">belum ada agent aktif</span>}
+                <input
+                  type="radio"
+                  name="meeting-mode"
+                  className="mt-0.5"
+                  checked={meetingMode === 'a2a'}
+                  onChange={() => setMeetingMode('a2a')}
+                />
+                <div>
+                  <div className="text-xs font-bold text-sky-300">Mode A2A (Agent Nyata)</div>
+                  <div className="text-[11px] text-slate-400 leading-snug">
+                    Pernyataan langsung antar-agent nyata via protokol A2A.
+                  </div>
+                </div>
+              </label>
+
+              <label
+                className={`p-2.5 rounded-lg border cursor-pointer transition-all flex items-start gap-2.5 ${
+                  meetingMode === 'simulasi'
+                    ? 'bg-indigo-500/15 border-indigo-400/80 text-white shadow-sm'
+                    : 'bg-slate-800/40 border-slate-800 text-slate-400 hover:border-slate-700'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="meeting-mode"
+                  className="mt-0.5"
+                  checked={meetingMode === 'simulasi'}
+                  onChange={() => setMeetingMode('simulasi')}
+                />
+                <div>
+                  <div className="text-xs font-bold text-indigo-300">Mode Simulasi (LLM)</div>
+                  <div className="text-[11px] text-slate-400 leading-snug">
+                    Diskusi disintesis oleh 1 LLM terpusat (BUKAN agent nyata).
+                  </div>
+                </div>
+              </label>
+            </div>
           </div>
 
-          <label className="vp-sub">PEMBAWA ACARA</label>
-          <select
-            className="vp-input"
-            value={moderator}
-            onChange={(e) => setModerator(e.target.value)}
-          >
-            {picked.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
-          </select>
+          {/* Card 4 (Opsional): Setup LLM bila belum dikonfigurasi */}
+          {meetingMode === 'simulasi' && !configured && (
+            <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3.5 text-xs text-amber-300 flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <span>⚠️ Mode simulasi membutuhkan API Key LLM.</span>
+                <button
+                  className="font-bold underline text-sky-400 hover:text-sky-300 text-[11px]"
+                  onClick={() => setShowConfigBox(!showConfigBox)}
+                >
+                  {showConfigBox ? 'Tutup' : '⚙️ Isi API Key'}
+                </button>
+              </div>
 
-          <label className="vp-sub">MODE RAPAT</label>
-          <div className="flex flex-col gap-2">
-            <label className="vp-kv">
-              <input
-                type="radio"
-                name="meeting-mode"
-                checked={meetingMode === 'simulasi'}
-                onChange={() => setMeetingMode('simulasi')}
-              />
-              <span>
-                <b>Simulasi</b> — yang bicara LLM gateway, <b>bukan</b> agent. Perilaku lama,
-                labelnya jujur.
-              </span>
-            </label>
-            <label className="vp-kv">
-              <input
-                type="radio"
-                name="meeting-mode"
-                checked={meetingMode === 'a2a'}
-                onChange={() => setMeetingMode('a2a')}
-              />
-              <span>
-                <b>A2A</b> — yang bicara agent nyata via protokol A2A (butuh toggle A2A tiap
-                peserta + restart gateway setelah perubahan).
-              </span>
-            </label>
-          </div>
+              {showConfigBox && (
+                <div className="mt-1 pt-2 border-t border-amber-500/20 flex flex-col gap-2 bg-slate-900/80 p-3 rounded-lg">
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-300 block mb-0.5">Base URL</label>
+                    <input
+                      type="text"
+                      className="vp-input w-full text-xs font-mono"
+                      placeholder="https://api.openai.com/v1"
+                      value={cfgBaseUrl}
+                      onChange={(e) => setCfgBaseUrl(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-300 block mb-0.5">API Key</label>
+                    <input
+                      type="password"
+                      className="vp-input w-full text-xs font-mono"
+                      placeholder="sk-..."
+                      value={cfgApiKey}
+                      onChange={(e) => setCfgApiKey(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-300 block mb-0.5">Model</label>
+                    <input
+                      type="text"
+                      className="vp-input w-full text-xs font-mono"
+                      placeholder="gpt-4o-mini"
+                      value={cfgModel}
+                      onChange={(e) => setCfgModel(e.target.value)}
+                    />
+                  </div>
+                  <button
+                    className="vp-btn text-xs font-bold"
+                    disabled={cfgBusy || !cfgApiKey.trim()}
+                    onClick={saveConfig}
+                  >
+                    {cfgBusy ? 'Menyimpan…' : '✓ Simpan & Aktifkan'}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
 
           <button
-            className="vp-btn"
-            disabled={busy || !topic.trim() || picked.length < 2 || !configured}
+            className="vp-btn primary w-full flex items-center justify-center gap-2 font-bold py-2.5 shadow-md shadow-indigo-500/10 mt-1"
+            disabled={busy || !topic.trim() || picked.length < 2 || (meetingMode === 'simulasi' && !configured)}
             onClick={start}
           >
-            {busy ? 'Memulai…' : 'Mulai rapat'}
+            <span>▶</span>
+            <span>{busy ? 'Memulai Diskusi…' : 'Mulai Rapat Tim'}</span>
           </button>
-          {picked.length < 2 && <div className="vp-muted">pilih minimal 2 peserta</div>}
-        </>
+          {picked.length < 2 && (
+            <div className="text-center text-[11px] text-slate-400">Pilih minimal 2 peserta untuk memulai rapat</div>
+          )}
+        </div>
       )}
     </FullPanel>
   )

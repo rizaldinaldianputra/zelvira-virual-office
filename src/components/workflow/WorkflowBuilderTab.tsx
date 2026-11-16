@@ -504,22 +504,22 @@ export default function WorkflowBuilderTab({
         {error && <div className="vp-err" role="alert">{error}</div>}
         {message && <div className="vp-ok" role="status">{message}</div>}
 
-        {/* WORKFLOW METADATA */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+        {/* WORKFLOW METADATA CARD */}
+        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3 grid grid-cols-1 md:grid-cols-4 gap-3">
           <div className="md:col-span-2">
-            <label className="vp-sub">NAMA WORKFLOW</label>
+            <label className="text-[11px] font-bold text-slate-300 block mb-1">NAMA WORKFLOW</label>
             <input
-              className="vp-input text-xs"
+              className="vp-input w-full text-xs"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Contoh: Otomasi Konten Zelvira Instagram & Web"
+              placeholder="cth: Otomasi Konten Zelvira Instagram & Web"
             />
           </div>
 
           <div>
-            <label className="vp-sub">STATUS</label>
+            <label className="text-[11px] font-bold text-slate-300 block mb-1">STATUS</label>
             <select
-              className="vp-input text-xs"
+              className="vp-input w-full text-xs"
               value={status}
               onChange={(e) => setStatus(e.target.value as 'active' | 'inactive')}
             >
@@ -529,9 +529,9 @@ export default function WorkflowBuilderTab({
           </div>
 
           <div>
-            <label className="vp-sub">DESKRIPSI RINGKAS</label>
+            <label className="text-[11px] font-bold text-slate-300 block mb-1">DESKRIPSI RINGKAS</label>
             <input
-              className="vp-input text-xs"
+              className="vp-input w-full text-xs"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Deskripsi tujuan alur kerja…"

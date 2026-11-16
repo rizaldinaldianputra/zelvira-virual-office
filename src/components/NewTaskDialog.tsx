@@ -275,52 +275,79 @@ export default function NewTaskDialog() {
         {/* TAB 1: MANUAL */}
         {activeTab === 'create' && (
           <div className="vp-pad flex flex-col gap-3">
-            <label className="vp-sub">JUDUL TUGAS</label>
-            <input
-              className="vp-input"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Contoh: Buatkan Konten Instagram Zelvira"
-              autoFocus
-            />
+            {/* Card 1: Informasi Tugas & Prioritas */}
+            <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3.5 flex flex-col gap-3">
+              <div>
+                <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block mb-1">
+                  Judul Tugas <span className="text-rose-400">*</span>
+                </label>
+                <input
+                  className="vp-input w-full font-medium"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Misal: Buat integrasi payment gateway Midtrans"
+                  autoFocus
+                />
+              </div>
 
-            <label className="vp-sub">PENANGGUNG JAWAB</label>
-            <select
-              className="vp-input"
-              value={assignee}
-              onChange={(e) => setAssignee(e.target.value)}
-            >
-              {agents.map((a) => (
-                <option key={a.name} value={a.name}>
-                  {a.displayName} ({a.role})
-                </option>
-              ))}
-            </select>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t border-slate-800/80">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block mb-1">
+                    Prioritas
+                  </label>
+                  <select
+                    className="vp-input w-full"
+                    value={priority}
+                    onChange={(e) => setPriority(Number(e.target.value))}
+                  >
+                    <option value={3}>🔴 Critical (Prioritas Tertinggi)</option>
+                    <option value={2}>🟠 High (Tinggi)</option>
+                    <option value={1}>🔵 Medium (Standar)</option>
+                    <option value={0}>⚪ Low (Rendah)</option>
+                  </select>
+                </div>
 
-            <label className="vp-sub">DETAIL (OPSIONAL)</label>
-            <textarea
-              className="vp-input"
-              rows={3}
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              placeholder="Konteks, instruksi khusus, kriteria penerimaan"
-            />
+                <div>
+                  <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block mb-1">
+                    Penanggung Jawab
+                  </label>
+                  <select
+                    className="vp-input w-full"
+                    value={assignee}
+                    onChange={(e) => setAssignee(e.target.value)}
+                  >
+                    {agents.map((a) => (
+                      <option key={a.name} value={a.name}>
+                        🤖 {a.displayName} ({a.role})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
 
-            <label className="vp-sub">PRIORITAS</label>
-            <select
-              className="vp-input"
-              value={priority}
-              onChange={(e) => setPriority(Number(e.target.value))}
-            >
-              <option value={3}>Critical (3)</option>
-              <option value={2}>High (2)</option>
-              <option value={1}>Medium (1)</option>
-              <option value={0}>Low (0)</option>
-            </select>
+            {/* Card 2: Instruksi & Kriteria Penerimaan */}
+            <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3.5 flex flex-col gap-1.5">
+              <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block">
+                Instruksi & Kriteria (Opsional)
+              </label>
+              <textarea
+                className="vp-input w-full"
+                rows={3}
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                placeholder="Rincian konteks pekerjaan, API endpoint, atau deliverable yang diharapkan…"
+              />
+            </div>
 
-            <div style={{ marginTop: 8 }}>
-              <button className="vp-btn primary" disabled={busy || !title.trim()} onClick={submit} style={{ width: '100%' }}>
-                {busy ? 'Mengirim ke Antrean…' : 'Kirim ke antrean Kanban'}
+            <div className="mt-1">
+              <button
+                className="vp-btn primary w-full flex items-center justify-center gap-2 font-bold py-2.5 shadow-md shadow-emerald-500/10"
+                disabled={busy || !title.trim()}
+                onClick={submit}
+              >
+                <span>✓</span>
+                <span>{busy ? 'Mengirim ke Antrean…' : 'Kirim Tugas ke Papan Kanban'}</span>
               </button>
             </div>
             {note && <div className="vp-note">{note}</div>}

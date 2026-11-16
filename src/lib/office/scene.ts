@@ -167,6 +167,20 @@ function selectiveShadow(root: THREE.Object3D, light: THREE.DirectionalLight) {
   root.traverse((o) => {
     const m = o as THREE.Mesh
     if (!m.isMesh || !m.geometry) return
+    // Kaca arsitektural, permukaan transparan, dan air tidak boleh menerima atau melemparkan bayangan
+    // (menghindari shadow acne, bayangan hitam tebal, dan flicker/jitter pada dinding kaca)
+    const rawMat = m.material
+    const mat = Array.isArray(rawMat) ? rawMat[0] : rawMat
+    if (
+      mat &&
+      (mat.transparent ||
+        (mat as THREE.MeshPhysicalMaterial).transmission > 0 ||
+        (mat.opacity != null && mat.opacity < 1))
+    ) {
+      m.castShadow = false
+      m.receiveShadow = false
+      return
+    }
     bb.setFromObject(m)
     bb.getSize(size)
     const big = Math.max(size.x, size.y, size.z) >= SHADOW_MIN

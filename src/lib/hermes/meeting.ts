@@ -13,6 +13,7 @@
  *   restarts, the transcript lives on in /data/meetings.
  */
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
+import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import type { Meeting, MeetingMode, MeetingTurn } from '@/types/hermes'
 import {
@@ -36,10 +37,85 @@ const BACKOFF_MS = Number(process.env.MEETING_TURN_BACKOFF_MS || 4000)
 const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), 'data')
 
 export function getLlmConfig() {
-  const apiKey = process.env.AI_API_KEY || process.env.NVIDIA_API_KEY || process.env.OPENAI_API_KEY || ''
-  const baseUrl = (process.env.AI_BASE_URL || (process.env.NVIDIA_API_KEY ? 'https://integrate.api.nvidia.com/v1' : '')).replace(/\/$/, '')
-  const model = process.env.AI_MODEL || (process.env.NVIDIA_API_KEY ? 'nvidia/nemotron-3-ultra-55' : 'gpt-4o-mini')
+  let apiKey = process.env.AI_API_KEY || process.env.NVIDIA_API_KEY || process.env.OPENAI_API_KEY || ''
+  let baseUrl = (process.env.AI_BASE_URL || (process.env.NVIDIA_API_KEY ? 'https://integrate.api.nvidia.com/v1' : '')).replace(/\/$/, '')
+  let model = process.env.AI_MODEL || (process.env.NVIDIA_API_KEY ? 'nvidia/nemotron-3-ultra-55' : 'gpt-4o-mini')
+
+  // Bila process.env belum terisi, coba baca dari .env.local atau .env
+  if (!apiKey) {
+    try {
+      for (const envFile of ['.env.local', '.env']) {
+        const p = path.join(process.cwd(), envFile)
+        if (existsSync(p)) {
+          const content = readFileSync(p, 'utf8')
+          for (const line of content.split(/\r?\n/)) {
+            const t = line.trim()
+            if (!t || t.startsWith('#')) continue
+            const eq = t.indexOf('=')
+            if (eq > 0) {
+              const k = t.slice(0, eq).trim()
+              let v = t.slice(eq + 1).trim()
+              if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+                v = v.slice(1, -1)
+              }
+              if (!apiKey && (k === 'AI_API_KEY' || k === 'OPENAI_API_KEY' || k === 'NVIDIA_API_KEY')) {
+                apiKey = v
+                process.env.AI_API_KEY = v
+              }
+              if (!baseUrl && (k === 'AI_BASE_URL' || k === 'BASE_URL')) {
+                baseUrl = v.replace(/\/$/, '')
+                process.env.AI_BASE_URL = baseUrl
+              }
+              if (!model && (k === 'AI_MODEL' || k === 'MODEL')) {
+                model = v
+                process.env.AI_MODEL = v
+              }
+            }
+          }
+        }
+        if (apiKey) break
+      }
+    } catch {}
+  }
+
   return { apiKey, baseUrl, model }
+}
+
+/**
+ * Simpan konfigurasi LLM langsung ke process.env dan .env.local sehingga instan aktif.
+ */
+export async function setLlmConfig(apiKey: string, baseUrl: string, model: string) {
+  process.env.AI_API_KEY = apiKey
+  process.env.AI_BASE_URL = baseUrl
+  process.env.AI_MODEL = model
+
+  try {
+    const envLocalPath = path.join(process.cwd(), '.env.local')
+    let content = ''
+    try {
+      content = await readFile(envLocalPath, 'utf8')
+    } catch {}
+
+    const lines = content ? content.split(/\r?\n/) : []
+    const newKeys: Record<string, string> = {
+      AI_BASE_URL: baseUrl,
+      AI_API_KEY: apiKey,
+      AI_MODEL: model,
+    }
+
+    const filtered = lines.filter((l) => {
+      const trimmed = l.trim()
+      return !Object.keys(newKeys).some((k) => trimmed.startsWith(`${k}=`))
+    })
+
+    for (const [k, v] of Object.entries(newKeys)) {
+      filtered.push(`${k}=${v}`)
+    }
+
+    await writeFile(envLocalPath, filtered.join('\n') + '\n', 'utf8')
+  } catch (err) {
+    console.warn('Gagal menulis .env.local:', err)
+  }
 }
 
 /** One meeting at a time per server; a second start is rejected (409), not queued. */

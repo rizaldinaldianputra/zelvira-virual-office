@@ -833,39 +833,35 @@ export default function AgentSpawnPanel({
         </div>
 
         {/* ---------------- 1. IDENTITAS & PERAN ---------------- */}
-        <div className="rounded border border-slate-800 bg-slate-800/40 p-3 space-y-2.5">
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-300 uppercase tracking-wider">
-            <span>👤</span> 1. IDENTITAS & PERAN UTAMA (IDENTITY & ROLE)
+        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3.5 space-y-3">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-200 uppercase tracking-wider">
+            <span>👤</span> 1. Identitas & Peran Agent
           </div>
 
           <div>
-            <label className="block text-[11px] font-medium text-slate-400 mb-1">
-              Nama Profil / ID Panggilan Agent: <span className="text-red-400">*</span>
+            <label className="block text-[11px] font-bold text-slate-300 mb-1">
+              ID Panggilan Agent <span className="text-rose-400">*</span>
             </label>
             <input
-              className="vp-input w-full"
+              className="vp-input w-full font-mono text-xs"
               value={newName}
               onChange={(e) => setNewName(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))}
-              placeholder="misal: satria, budi, maya (huruf kecil tanpa spasi)"
+              placeholder="Contoh: dev-lead, content-1, seo-analyst"
               onKeyDown={(e) => {
                 if (e.key === 'Enter') void create()
               }}
             />
-            <span className="text-[10px] text-slate-500 block mt-0.5">
-              ID unik profil Hermes di sistem. Digunakan saat chat, penugasan kanban, dan koordinasi antar-agent.
-            </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             <div>
-              <label className="block text-[11px] font-medium text-slate-400 mb-1">
-                Divisi Kantor: <span className="text-red-400">*</span>
+              <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                Divisi <span className="text-rose-400">*</span>
               </label>
               <select
                 className="vp-input w-full"
                 value={newDivision}
                 onChange={(e) => setNewDivision(e.target.value as AgentDivision)}
-                title="Divisi agent di kantor"
               >
                 {DIVISION_OPTIONS.map(([v, label]) => (
                   <option key={v} value={v}>
@@ -876,14 +872,13 @@ export default function AgentSpawnPanel({
             </div>
 
             <div>
-              <label className="block text-[11px] font-medium text-slate-400 mb-1">
-                Spesialisasi Role / Jabatan: <span className="text-red-400">*</span>
+              <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                Role / Jabatan <span className="text-rose-400">*</span>
               </label>
               <select
                 className="vp-input w-full"
                 value={newRole}
                 onChange={(e) => setNewRole(e.target.value as AgentRole)}
-                title="Spesialisasi peran agent"
               >
                 {ROLE_OPTIONS.map(([v, label]) => (
                   <option key={v} value={v}>
@@ -895,38 +890,28 @@ export default function AgentSpawnPanel({
           </div>
 
           <div>
-            <label className="block text-[11px] font-medium text-slate-400 mb-1">
-              Deskripsi Publik Agent Card (A2A Discovery):
+            <label className="block text-[11px] font-bold text-slate-300 mb-1">
+              Deskripsi Tugas Singkat
             </label>
-            <textarea
-              className="vp-input w-full"
+            <input
+              className="vp-input w-full text-xs"
               value={newDesc}
               onChange={(e) => setNewDesc(e.target.value)}
-              placeholder="Deskripsi ringkas yang dibaca agent lain saat discovery. Tulis cakupan tugas, misal: Menangani API backend, optimasi query Postgres, dan deployment container. Hubungi untuk integrasi service atau bug server."
-              rows={2}
+              placeholder="Misal: Bertanggung jawab atas API, database Postgres, dan docker container"
             />
-            <span className="text-[10px] text-slate-500 block mt-0.5">
-              Teks ini dibaca oleh AI agent lain di kantor untuk mengetahui kapan harus mendelegasikan tugas ke agent ini.
-            </span>
           </div>
         </div>
 
         {/* ---------------- 2. SOUL & ANTI-HALUSINASI ---------------- */}
-        <div className="rounded border border-indigo-900/60 bg-indigo-950/20 p-3 space-y-2.5">
+        <div className="rounded-xl border border-indigo-900/60 bg-indigo-950/20 p-3.5 space-y-2.5">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-indigo-300 uppercase tracking-wider">
-              <span>🧠</span> 2. SOUL & PEDOMAN ANTI-HALUSINASI (SYSTEM PROMPT)
+            <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-300 uppercase tracking-wider">
+              <span>🧠</span> 2. Karakter & Pedoman SOUL
             </div>
-            <span className="rounded bg-indigo-900/70 text-indigo-200 px-1.5 py-0.5 text-[10px] font-medium">
-              No Halu · Verifikasi Wajib
+            <span className="rounded-full bg-indigo-900/70 text-indigo-200 px-2 py-0.5 text-[10px] font-bold border border-indigo-700/50">
+              Anti-Halusinasi
             </span>
           </div>
-
-          <p className="text-[11px] text-slate-400 leading-relaxed">
-            <b>Soul</b> adalah kepribadian dan pedoman instruksi eksekusi utama agent. Untuk memastikan agent
-            bekerja sesuai harapan dan <b>tidak berhalusinasi (tanpa ngarang jawaban)</b>, pilih template pedoman
-            ketat di bawah atau tulis aturan kustom Anda:
-          </p>
 
           <div className="flex flex-wrap gap-1.5">
             {SOUL_PRESETS.map((preset) => (
@@ -934,8 +919,7 @@ export default function AgentSpawnPanel({
                 key={preset.label}
                 type="button"
                 onClick={() => setNewSoul(preset.text(newName, newRole, newDivision))}
-                className="text-[11px] rounded border border-indigo-700/60 bg-indigo-900/40 px-2 py-1 text-indigo-200 hover:bg-indigo-800/60 hover:text-white transition-colors"
-                title={preset.desc}
+                className="text-[11px] rounded-lg border border-indigo-700/60 bg-indigo-900/40 px-2.5 py-1 text-indigo-200 hover:bg-indigo-800/60 hover:text-white transition-all font-medium"
               >
                 {preset.label}
               </button>
@@ -947,8 +931,8 @@ export default function AgentSpawnPanel({
               className="vp-input w-full font-mono text-[11px]"
               value={newSoul}
               onChange={(e) => setNewSoul(e.target.value)}
-              placeholder="Isi instruksi kerja & kepribadian agent... (Kosong = otomatis memakai template anti-halusinasi standar per role)"
-              rows={4}
+              placeholder="Instruksi dan kepribadian agent (kosong = template standar otomatis)..."
+              rows={3}
             />
           </div>
         </div>
